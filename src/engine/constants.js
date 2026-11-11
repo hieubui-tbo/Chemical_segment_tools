@@ -8,31 +8,33 @@ export const GUIDE_URL = "/Huong_dan_su_dung_ChemSeg.docx";
 /** Các giai đoạn của quy trình (dùng cho giao diện). */
 export const PHASES = [
   { id: "A", label: "Chuẩn bị dữ liệu", color: "#2F5BEA" },
-  { id: "B", label: "Làm sạch & chuẩn hóa số liệu", color: "#7B3FE4" },
+  { id: "B", label: "Làm sạch & chuẩn hóa dữ liệu", color: "#7B3FE4" },
   { id: "C", label: "Doanh nghiệp & thị trường", color: "#D6336C" },
   { id: "D", label: "Phân khúc & giá", color: "#E8590C" },
-  { id: "E", label: "Xuất báo cáo", color: "#0B8A61" },
+  { id: "E", label: "Xuất & rà soát kết quả", color: "#0B8A61" },
 ];
 
 /**
- * 14 bước — giữ nguyên trình tự logic của V17.
- * optional: bước có thể bỏ qua.  input: bước cần người dùng tải file/thiết lập trước khi chạy.
+ * 15 bước. Giai đoạn B làm sạch trước (tên doanh nghiệp → số liệu → đơn vị) rồi mới đối chiếu,
+ * để phép đối chiếu giá trị và phát hiện trùng nguồn dùng số liệu đã đồng nhất (Lượng tấn, mã nhóm doanh nghiệp).
+ * optional: bước có thể bỏ qua.  noRun: bước không cần chạy (xem/tải kết quả).
  */
 export const STEPS = [
   { id: "upload",   no: 1,  phase: "A", label: "Tải dữ liệu",               short: "Tải dữ liệu" },
   { id: "schema",   no: 2,  phase: "A", label: "Ánh xạ cột",                short: "Ánh xạ cột" },
   { id: "quality",  no: 3,  phase: "A", label: "Kiểm tra chất lượng",       short: "Chất lượng" },
-  { id: "backfill", no: 4,  phase: "B", label: "Bổ sung số liệu thiếu",     short: "Bổ sung số liệu" },
-  { id: "validate", no: 5,  phase: "B", label: "Đối chiếu giá trị",         short: "Đối chiếu giá trị" },
+  { id: "entity",   no: 4,  phase: "B", label: "Chuẩn hóa doanh nghiệp",    short: "Chuẩn hóa doanh nghiệp" },
+  { id: "backfill", no: 5,  phase: "B", label: "Bổ sung số liệu thiếu",     short: "Bổ sung số liệu" },
   { id: "units",    no: 6,  phase: "B", label: "Quy đổi đơn vị về tấn",     short: "Quy đổi đơn vị" },
-  { id: "entity",   no: 7,  phase: "C", label: "Chuẩn hóa doanh nghiệp",    short: "Chuẩn hóa doanh nghiệp" },
+  { id: "validate", no: 7,  phase: "B", label: "Đối chiếu giá trị",         short: "Đối chiếu giá trị" },
   { id: "ranking",  no: 8,  phase: "C", label: "Xếp hạng nhóm doanh nghiệp Top", short: "Xếp hạng Top" },
   { id: "industry", no: 9,  phase: "C", label: "Gán ngành (Industry Master)", short: "Gán ngành", optional: true },
   { id: "keywords", no: 10, phase: "D", label: "Bộ từ khóa phân khúc",      short: "Bộ từ khóa", optional: true },
   { id: "classify", no: 11, phase: "D", label: "Phân loại phân khúc",       short: "Phân loại" },
   { id: "iqr",      no: 12, phase: "D", label: "Lọc giá trị ngoại lai IQR",          short: "Ngoại lai IQR" },
   { id: "metrics",  no: 13, phase: "D", label: "Chỉ số phân khúc",          short: "Chỉ số phân khúc" },
-  { id: "export",   no: 14, phase: "E", label: "Xuất kết quả",              short: "Xuất kết quả" },
+  { id: "export",   no: 14, phase: "E", label: "Xuất kết quả",              short: "Xuất kết quả", noRun: true },
+  { id: "review",   no: 15, phase: "E", label: "Rà soát dữ liệu sau xử lý", short: "Rà soát sau xử lý", noRun: true },
 ];
 export const STEP_INDEX = Object.fromEntries(STEPS.map((s, i) => [s.id, i]));
 
@@ -68,20 +70,20 @@ export const REQUIRED_FIELDS = SCHEMA_FIELDS.filter((f) => !f.optional).map((f) 
 /** Cấu hình mặc định — mọi tham số logic đều điều chỉnh được trên giao diện. */
 export const DEFAULT_SETTINGS = {
   projectName: "Du_an",
-  // Bước 5
-  valueTolerance: 0.30,
   // Bước 6
   unitFactors: {},           // { "TON": 1, "LTR": 0.0012, ... } ghi đè theo đơn vị chuẩn hóa; null = loại
   inferPackageWeight: true,  // suy luận khối lượng/bao từ mô tả khi đơn vị là bao, chai, kiện…
   priceSanityCheck: true,    // đánh dấu giá/tấn phi lý (nghi sai đơn vị) và loại khỏi IQR/chỉ số
   priceBandMin: 0,           // USD/tấn — khoảng giá hợp lý của sản phẩm do người nghiên cứu đặt; 0 = tự động (giá tham chiếu ÷ 50)
   priceBandMax: 0,           // USD/tấn — 0 = tự động (giá tham chiếu × 2.000)
-  // Bước 7
+  // Bước 4
   supplierGroupByCountry: false,
   fuzzyEnabled: true,
   fuzzyThreshold: 0.90,
   customPlaceholders: [],
   nameCase: "title",
+  // Bước 7
+  valueTolerance: 0.30,
   detectCrossSource: true,   // phát hiện giao dịch trùng giữa các nguồn dữ liệu (cần ánh xạ cột Nguồn)
   // Bước 8
   topThreshold: 0.80,
@@ -108,9 +110,9 @@ export const DEFAULT_SETTINGS = {
 
 /** Tham số nào thuộc bước nào — đổi tham số sẽ làm các bước từ đó trở đi cần chạy lại. */
 export const SETTING_STEP = {
-  valueTolerance: "validate",
+  valueTolerance: "validate", detectCrossSource: "validate",
   unitFactors: "units", inferPackageWeight: "units", priceSanityCheck: "units", priceBandMin: "units", priceBandMax: "units",
-  supplierGroupByCountry: "entity", fuzzyEnabled: "entity", fuzzyThreshold: "entity", customPlaceholders: "entity", nameCase: "entity", detectCrossSource: "entity",
+  supplierGroupByCountry: "entity", fuzzyEnabled: "entity", fuzzyThreshold: "entity", customPlaceholders: "entity", nameCase: "entity", 
   topThreshold: "ranking", rankingMetric: "ranking", excludeCrossSourceDup: "ranking",
   industryApplyScope: "industry",
   keywordMatchMode: "classify", keywordFields: "classify", segmentBasis: "classify",

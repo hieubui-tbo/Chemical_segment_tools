@@ -46,6 +46,9 @@ export function parseKeywordMatrix(buffer, fileName) {
   return kw;
 }
 
+/** Đối chiếu phân khúc từ khóa ↔ phân khúc ngành (cột Segment_Consistency). */
+export const SEG_CONSIST = { MATCH: "Khớp", DIFF: "Khác nhau (nên rà soát)" };
+
 export function runClassify(engine, progress) {
   const kw = engine.refs.keywords;
   const mode = engine.settings.keywordMatchMode || "word";
@@ -77,7 +80,7 @@ export function runClassify(engine, progress) {
       KS[i] = r.seg && r.seg !== OUT_OF_SCOPE ? r.seg : ""; KD[i] = r.detail; KC[i] = r.conf; SC[i] = "";
       const kwSeg = useKw && r.seg && r.seg !== OUT_OF_SCOPE ? r.seg : null;
       const indSeg = useInd && indCanon ? indCanon : null;
-      if (kwSeg && indSeg) { if (normText(indSeg) === normText(kwSeg)) SC[i] = "Khớp"; else { SC[i] = "Khác nhau (nên rà soát)"; c.mismatch++; } }
+      if (kwSeg && indSeg) { if (normText(indSeg) === normText(kwSeg)) SC[i] = SEG_CONSIST.MATCH; else { SC[i] = SEG_CONSIST.DIFF; c.mismatch++; } }
       if (r.seg === OUT_OF_SCOPE) { FS[i] = OUT_OF_SCOPE; SM[i] = "Từ khóa loại trừ"; c.outOfScope++; }
       else if (indFirst && indSeg) { FS[i] = indSeg; SM[i] = basis === "industry_only" ? "Ngành của doanh nghiệp" : "Ngành của doanh nghiệp (ưu tiên)"; c.industry++; }
       else if (kwSeg) {

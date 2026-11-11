@@ -39,21 +39,23 @@ Dự án đã có `vercel.json` (Framework Vite · Build `npm run build` · Outp
 ```bash
 npm install
 npm run dev              # http://localhost:5173
-npm test                 # 108 kiểm thử tự động
+npm test                 # 111 kiểm thử tự động
 npm run build            # kiểm tra profiles/ rồi đóng gói vào dist/
 npm run check-profiles   # chỉ kiểm tra thư viện hồ sơ
 npm run pipeline -- <file_du_lieu.xlsx> <file_bo_tu_khoa.xlsx>   # chạy toàn quy trình bằng dòng lệnh
 ```
 
-## Quy trình 14 bước
+## Quy trình 15 bước
 
 | Giai đoạn | Bước |
 |---|---|
 | A. Chuẩn bị dữ liệu | 1 Hồ sơ & tải dữ liệu · 2 Ánh xạ cột · 3 Kiểm tra chất lượng |
-| B. Làm sạch & chuẩn hóa số liệu | 4 Bổ sung số liệu · 5 Đối chiếu giá trị · 6 Quy đổi đơn vị về tấn |
-| C. Doanh nghiệp & thị trường | 7 Chuẩn hóa DN · 8 Xếp hạng Top · 9 Gán ngành |
+| B. Làm sạch & chuẩn hóa dữ liệu | 4 Chuẩn hóa doanh nghiệp · 5 Bổ sung số liệu · 6 Quy đổi đơn vị về tấn · 7 Đối chiếu giá trị & trùng nguồn |
+| C. Doanh nghiệp & thị trường | 8 Xếp hạng Top · 9 Gán ngành |
 | D. Phân khúc & giá | 10 Bộ từ khóa phân khúc · 11 Phân loại · 12 Lọc ngoại lai IQR · 13 Chỉ số phân khúc |
-| E. Xuất báo cáo | 14 Xuất kết quả |
+| E. Xuất & rà soát kết quả | 14 Xuất kết quả · 15 Rà soát dữ liệu sau xử lý |
+
+Làm sạch trước, đối chiếu sau: đối chiếu giá trị và phát hiện trùng nguồn chạy trên số liệu đã thống nhất tên doanh nghiệp và đơn vị tấn.
 
 ## Kiến trúc
 
@@ -61,8 +63,9 @@ npm run pipeline -- <file_du_lieu.xlsx> <file_bo_tu_khoa.xlsx>   # chạy toàn 
 profiles/            Thư viện hồ sơ sản phẩm dùng chung (tự nạp khi build)
 public/              Hướng dẫn Word (tải trực tiếp từ công cụ)
 src/engine/          Logic xử lý (JavaScript thuần, không phụ thuộc giao diện)
-  engine.js          Điều phối 14 bước, trạng thái, tự làm mới các bước sau khi chạy lại
+  engine.js          Điều phối 15 bước, trạng thái, tự làm mới các bước sau khi chạy lại
   profile.js         Kiểm tra / chuẩn hóa hồ sơ  ·  profileApply.js: áp dụng & đóng gói hồ sơ
+  review.js          Bước 15: trường hợp rà soát, đối chiếu chéo, tệp rà soát dữ liệu
   steps/             prep · price (đơn vị, IQR, chỉ số) · entity · ranking · industry
                      keywords (bộ phân khúc & so khớp) · classify (phân loại, xem trước độ phủ, gợi ý)
   dict/              Từ điển quốc gia (ISO2/ISO3/EN/VN), đơn vị, hình thức pháp lý & cụm từ tên DN

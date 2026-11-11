@@ -37,6 +37,7 @@ export const COLUMN_DEFS = [
 
   C("Value_Check", "Đối chiếu giá trị", "validate", "Hợp lệ / Lệch vượt ngưỡng / Thiếu dữ liệu / Đã bổ sung (không kiểm được). Lệch = |Đơn giá × Lượng − Trị giá| / Trị giá."),
   C("Value_Check_Diff", "Tỷ lệ lệch giá trị", "validate", "|Đơn giá × Lượng − Trị giá| / Trị giá.", "pct"),
+  C("UnitPrice_Orig_per_MT", "Đơn giá gốc quy đổi (USD/tấn)", "validate", "= Đơn giá (sạch) ÷ Hệ số quy đổi — so trực tiếp với Đơn giá (USD/tấn) = Trị giá / Lượng (tấn); chênh nhau nhiều ⇒ cột Đơn giá gốc hoặc đơn vị không tin cậy.", "num"),
 
   C("Unit_Std", "Đơn vị (chuẩn hóa)", "units", "Mã đơn vị sau chuẩn hóa (bỏ dấu chấm, khoảng trắng thừa…)."),
   C("Unit_Status", "Trạng thái quy đổi", "units", "Đã quy đổi / Suy luận từ mô tả / Mơ hồ – chưa quy đổi / Không phải khối lượng / Chưa có hệ số / Thiếu đơn vị / Thiếu lượng."),
@@ -45,9 +46,9 @@ export const COLUMN_DEFS = [
   C("UnitPrice_per_MT", "Đơn giá (USD/tấn)", "units", "= Trị giá (sạch) / Lượng (tấn); nếu thiếu trị giá thì = Đơn giá (sạch) / Hệ số.", "num"),
   C("Price_Sanity", "Kiểm tra giá/tấn", "units", "Giá/tấn < 1/50 hoặc > 2.000 lần giá tham chiếu (trung vị có trọng số trị giá) ⇒ phi lý, nghi sai đơn vị (ví dụ: lượng KG nhưng ghi TNE). Bị loại khỏi IQR và chỉ số."),
 
-  ...entityCols("Purchaser", "DN mua", "Nước nhập khẩu"),
+  ...entityCols("Purchaser", "Doanh nghiệp mua", "Nước nhập khẩu"),
   ...entityCols("Supplier", "Doanh nghiệp bán", "Nước xuất xứ"),
-  C("Cross_Source_Dup", "Nghi trùng giữa các nguồn", "entity", "Giao dịch có cùng năm, cùng lượng, cùng trị giá (±1 USD), cùng doanh nghiệp mua hoặc doanh nghiệp bán, ngày lệch ≤ 10 ngày nhưng đến từ NGUỒN DỮ LIỆU KHÁC — dòng được giữ là bản ghi của nước nhập khẩu (nếu có)."),
+  C("Cross_Source_Dup", "Nghi trùng giữa các nguồn", "validate", "Giao dịch có cùng năm, cùng lượng (tấn), cùng trị giá (±1 USD), cùng doanh nghiệp mua hoặc doanh nghiệp bán, ngày lệch ≤ 10 ngày nhưng đến từ NGUỒN DỮ LIỆU KHÁC — dòng được giữ là bản ghi của nước nhập khẩu (nếu có)."),
 
   C("Row_Ranking_Value", "Giá trị xếp hạng (dòng)", "ranking", "= Trị giá (sạch) (hoặc Lượng tấn nếu chọn xếp hạng theo khối lượng); dòng nghi trùng nguồn khác không được tính.", "num"),
   C("Research_Scope_Flag", "Phạm vi nghiên cứu (doanh nghiệp mua)", "ranking", "Vị trí của doanh nghiệp mua trong xếp hạng toàn cầu của năm: Thuộc Top / Ngoài Top / doanh nghiệp không xác định / Không tính được giá trị."),
@@ -92,7 +93,7 @@ export const DETAIL_COMPUTED_ORDER = [
   "Industry", "Industry_Segment", "Industry_Match",
   "Final_Segment", "Segment_Method", "Keyword_Segment", "Keyword_Match_Detail", "Keyword_Confidence", "Segment_Consistency",
   "UnitPrice_Clean", "TotalValue_Clean", "Quantity_Clean", "Backfill_Field", "Value_Check", "Value_Check_Diff",
-  "Unit_Std", "Unit_Status", "Conversion_Factor", "Quantity_MT", "UnitPrice_per_MT", "Price_Sanity",
+  "Unit_Std", "Unit_Status", "Conversion_Factor", "Quantity_MT", "UnitPrice_per_MT", "UnitPrice_Orig_per_MT", "Price_Sanity",
   "IQR_Check", "IQR_Lower", "IQR_Upper",
   "Duplicate_Flag", "Cross_Source_Dup", "Date_Clean",
   "Final_Included", "Exclusion_Reason",

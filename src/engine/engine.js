@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   ENGINE — trạng thái dữ liệu + điều phối 14 bước
+   ENGINE — trạng thái dữ liệu + điều phối 15 bước
    Nguyên tắc:
    1. Dữ liệu gốc KHÔNG BAO GIỜ bị ghi đè. Mỗi bước ghi kết quả vào cột riêng.
    2. Chạy lại bước k ⇒ tự động xóa kết quả các bước sau k (tránh dữ liệu "lệch pha").
@@ -82,7 +82,7 @@ export class Engine {
   /** Bước có thể chạy khi mọi bước trước đã xong / bỏ qua. */
   canRun(id) {
     const idx = STEP_INDEX[id];
-    for (let i = 0; i < idx; i++) if (!this.isDoneOrSkipped(STEPS[i].id)) return { ok: false, blocker: STEPS[i] };
+    for (let i = 0; i < idx; i++) if (!STEPS[i].noRun && !this.isDoneOrSkipped(STEPS[i].id)) return { ok: false, blocker: STEPS[i] };
     return { ok: true };
   }
 
@@ -313,7 +313,7 @@ export class Engine {
   runStep(id) {
     if (id === "upload" || id === "schema") throw new EngineError("Bước này được xác nhận trực tiếp trên giao diện.");
     if (id === "keywords") throw new EngineError("Hãy tải tệp bộ từ khóa hoặc chọn bỏ qua.");
-    if (id === "export") throw new EngineError("Bước xuất tệp không cần chạy.");
+    if (STEPS[STEP_INDEX[id]]?.noRun) throw new EngineError(id === "export" ? "Bước xuất tệp không cần chạy." : "Bước này không cần chạy — xem hướng dẫn và tải tệp rà soát.");
     const can = this.canRun(id);
     if (!can.ok) throw new EngineError(`Cần hoàn thành bước ${can.blocker.no} "${can.blocker.label}" trước.`);
     const runner = STEP_RUNNERS[id];
@@ -342,7 +342,7 @@ export class Engine {
     this.results[id] = { _skipped: true, note: "Đã bỏ qua — không gán ngành." };
   }
 
-  /** Chạy tự động từ bước chưa xong tới bước 13. Dừng nếu cần người dùng quyết định. */
+  /** Chạy tự động từ bước chưa xong tới bước 13 (Chỉ số phân khúc). Dừng nếu cần người dùng quyết định. */
   runAll({ autoSkipIndustry = true } = {}) {
     const ran = [];
     for (const s of STEPS) {
@@ -350,7 +350,7 @@ export class Engine {
         if (!this.isDoneOrSkipped(s.id)) return { ran, stoppedAt: s.id, reason: `Cần hoàn tất bước ${s.no} "${s.label}" trên giao diện.` };
         continue;
       }
-      if (s.id === "export") break;
+      if (s.noRun) break;
       if (this.isDoneOrSkipped(s.id)) continue;
       if (s.id === "industry" && !this.refs.industry.entries.length) {
         if (autoSkipIndustry) { this.skipStep("industry"); ran.push({ id: s.id, skipped: true }); continue; }

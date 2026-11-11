@@ -7,7 +7,7 @@ import { n, pct, usd } from "../ui/format.js";
 
 const XLS = ".xlsx,.xls,.xlsb,.csv";
 
-/* ═════════ BƯỚC 7 — CHUẨN HÓA DOANH NGHIỆP ═════════ */
+/* ═════════ BƯỚC 4 — CHUẨN HÓA DOANH NGHIỆP (đầu giai đoạn làm sạch) ═════════ */
 export function EntityStep() {
   const { state, run, uploadTo, download, query, stepState } = useApp();
   const S = state?.settings || {};
@@ -28,7 +28,6 @@ export function EntityStep() {
 
   const addPh = () => { const v = phIn.trim(); if (!v) return; upd({ customPlaceholders: [...(S.customPlaceholders || []), v] }); setPhIn(""); };
   const T = R?.[type];
-  const xs = R?.crossSource;
 
   return (
     <>
@@ -41,14 +40,13 @@ export function EntityStep() {
             </Field>
             <Field label="Gộp lỗi chính tả (gần đúng ký tự)" hint="Chặt = ít gộp nhầm hơn; Rộng = bắt được nhiều lỗi chính tả hơn. Mọi nhóm gộp gần đúng đều được đánh dấu Cần rà soát.">
               <div className="row">
-                <Toggle checked={S.fuzzyEnabled} onChange={(v) => upd({ fuzzyEnabled: v })} color="var(--phase-C)" label={S.fuzzyEnabled ? "Bật" : "Tắt"} />
+                <Toggle checked={S.fuzzyEnabled} onChange={(v) => upd({ fuzzyEnabled: v })} color="var(--phase-B)" label={S.fuzzyEnabled ? "Bật" : "Tắt"} />
                 {S.fuzzyEnabled && <Seg value={S.fuzzyThreshold} onChange={(v) => upd({ fuzzyThreshold: v })} options={[{ value: 0.95, label: "Chặt" }, { value: 0.9, label: "Vừa (mặc định)" }, { value: 0.85, label: "Rộng" }]} />}
               </div>
             </Field>
             <Field label="Kiểu chữ tên chuẩn hóa">
               <Seg value={S.nameCase} onChange={(v) => upd({ nameCase: v })} options={[{ value: "title", label: "Viết Hoa Chữ Đầu" }, { value: "upper", label: "IN HOA" }]} />
             </Field>
-            <Toggle checked={S.detectCrossSource} onChange={(v) => upd({ detectCrossSource: v })} color="var(--phase-C)" label="Phát hiện giao dịch trùng giữa các nguồn dữ liệu" />
           </div>
         </Card>
         <div>
@@ -60,7 +58,7 @@ export function EntityStep() {
             <div className="row mt8">{(S.customPlaceholders || []).map((p) => <span className="chip" key={p}>{p}<button onClick={() => upd({ customPlaceholders: S.customPlaceholders.filter((x) => x !== p) })}><X size={13} /></button></span>)}</div>
           </Card>
           <Card title="Từ điển doanh nghiệp của bạn (tùy chọn)" sub="Ép gộp/tách hoặc loại tên. Ưu tiên tuyệt đối so với thuật toán.">
-            <DropZone compact multiple accept={XLS} color="var(--phase-C)" icon={BookOpen} title="Tải tệp từ điển doanh nghiệp" sub="Cột: Tên gốc · Tên chuẩn hóa (sửa) · (Quốc gia) · (Loại)"
+            <DropZone compact multiple accept={XLS} color="var(--phase-B)" icon={BookOpen} title="Tải tệp từ điển doanh nghiệp" sub="Cột: Tên gốc · Tên chuẩn hóa (sửa) · (Quốc gia) · (Loại)"
               onFiles={(f) => uploadTo("loadOverrides", f, "Đọc từ điển doanh nghiệp")} />
             <div className="row mt8">
               {ov?.files?.map((f) => <span className="chip" key={f.name}>{f.name} · {n(f.rows)} dòng</span>)}
@@ -74,10 +72,10 @@ export function EntityStep() {
         extra={done && <Btn kind="ghost" icon={FileDown} onClick={() => download("Tạo tệp rà soát", "exportEntityReview")}>Tải tệp rà soát tên doanh nghiệp</Btn>} />
       {R && (
         <>
-          <Tabs value={type} onChange={setType} color="var(--phase-C)" tabs={[{ value: "Purchaser", label: "Doanh nghiệp mua (nhà nhập khẩu)", count: n(R.Purchaser.entities) }, { value: "Supplier", label: "Doanh nghiệp bán (nhà cung cấp)", count: n(R.Supplier.entities) }]} />
+          <Tabs value={type} onChange={setType} color="var(--phase-B)" tabs={[{ value: "Purchaser", label: "Doanh nghiệp mua (nhà nhập khẩu)", count: n(R.Purchaser.entities) }, { value: "Supplier", label: "Doanh nghiệp bán (nhà cung cấp)", count: n(R.Supplier.entities) }]} />
           <div className="kpis mb12">
-            <Kpi label="Nhóm doanh nghiệp sau chuẩn hóa" value={n(T.entities)} color="var(--phase-C)" sub={`từ ${n(T.rawVariants)} cách viết tên`} />
-            <Kpi label="Giảm số tên nhờ gộp" value={pct(T.reductionPct, 0)} color="var(--phase-C)" sub={`${n(T.merged)} nhóm có ≥ 2 biến thể`} />
+            <Kpi label="Nhóm doanh nghiệp sau chuẩn hóa" value={n(T.entities)} color="var(--phase-B)" sub={`từ ${n(T.rawVariants)} cách viết tên`} />
+            <Kpi label="Giảm số tên nhờ gộp" value={pct(T.reductionPct, 0)} color="var(--phase-B)" sub={`${n(T.merged)} nhóm có ≥ 2 biến thể`} />
             <Kpi label="Cần rà soát" value={n(T.review)} color="var(--warn)" sub="gộp gần đúng hoặc có cảnh báo rủi ro" />
             <Kpi label="Dòng tên không xác định" value={n(T.placeholderRows)} color="var(--text-3)" sub={`${pct(T.placeholderValueShare, 1)} tổng trị giá`} />
             {T.confirmed > 0 && <Kpi label="Đã xác nhận bằng từ điển" value={n(T.confirmed)} color="var(--phase-B)" />}
@@ -111,19 +109,9 @@ export function EntityStep() {
               </>
             )}
           </Card>
-          <div className="grid-2">
-            <Card title="Tên bị coi là không xác định (nhiều nhất)">
+          <Card title="Tên bị coi là không xác định (nhiều nhất)">
               <Table maxHeight={300} columns={[{ key: "raw", label: "Tên gốc", className: "clip" }, { key: "count", label: "Dòng", num: true, render: (r) => n(r.count) }, { key: "value", label: "Trị giá", num: true, render: (r) => usd(r.value) }, { key: "reason", label: "Lý do", className: "reason" }]} rows={T.placeholderTop} />
-            </Card>
-            <Card title="Giao dịch trùng giữa các nguồn">
-              {!xs?.enabled ? <Empty title="Đang tắt tính năng" /> : !xs.mapped ? <Callout kind="info">Chưa ánh xạ cột <b>Nguồn dữ liệu</b> ở bước 2 nên không kiểm tra được.</Callout> : (
-                <>
-                  <div className="kpis mb12"><Kpi label="Dòng nghi trùng" value={n(xs.rows)} color="var(--phase-C)" /><Kpi label="Trị giá nghi trùng" value={usd(xs.value)} color="var(--phase-C)" sub={S.excludeCrossSourceDup ? "sẽ loại khỏi xếp hạng & chỉ số" : "vẫn được tính (đã tắt loại)"} /></div>
-                  <Table maxHeight={220} columns={[{ key: "pair", label: "Nguồn bị đánh dấu ↔ nguồn được giữ", className: "clip" }, { key: "rows", label: "Dòng", num: true, render: (r) => n(r.rows) }, { key: "value", label: "Trị giá", num: true, render: (r) => usd(r.value) }]} rows={xs.bySource.slice(0, 20)} />
-                </>
-              )}
-            </Card>
-          </div>
+          </Card>
         </>
       )}
     </>

@@ -93,18 +93,23 @@ export const GUIDES = {
     ),
   },
   validate: {
-    tagline: "Đối chiếu Đơn giá × Lượng với Trị giá để kiểm tra tính nhất quán của số liệu.",
-    purpose: "Đánh dấu các dòng có số liệu chưa khớp, có thể do nhập sai giá trị, đơn vị tính hoặc ánh xạ nhầm cột.",
-    todo: "Chọn ngưỡng chênh lệch cho phép (mặc định 30%), sau đó chọn Chạy để thực hiện đối chiếu.",
-    result: "Kết quả hiển thị trạng thái đối chiếu (Hợp lệ / Lệch vượt ngưỡng / Thiếu dữ liệu / Đã bổ sung) và tỷ lệ chênh lệch của từng dòng.",
+    tagline: "Đối chiếu số liệu sau khi đã làm sạch: Đơn giá × Lượng với Trị giá, và giao dịch trùng giữa các nguồn.",
+    purpose: "Đánh dấu các dòng có số liệu chưa khớp (nhập sai giá trị, đơn vị tính, ánh xạ nhầm cột) và các lô hàng bị ghi hai lần ở hai nguồn — trên số liệu đã đồng nhất về tên doanh nghiệp và đơn vị tấn.",
+    todo: "Chọn ngưỡng chênh lệch cho phép (mặc định 30%), giữ bật phát hiện trùng nguồn, sau đó chọn Chạy để thực hiện đối chiếu.",
+    result: "Trạng thái đối chiếu từng dòng (Hợp lệ / Lệch vượt ngưỡng / Thiếu dữ liệu / Đã bổ sung), tỷ lệ lệch, đơn giá gốc quy đổi về USD/tấn và danh sách giao dịch nghi trùng giữa các nguồn.",
     details: (
       <>
+        <h4>Vì sao đối chiếu sau khi làm sạch</h4>
+        <p>Bước 4–6 đã thống nhất tên doanh nghiệp, bổ sung số liệu thiếu và quy đổi lượng về tấn. Đối chiếu trên số liệu này giúp: so được đơn giá gốc với đơn giá USD/tấn theo cùng một đơn vị; nhận ra trùng nguồn kể cả khi một nguồn ghi 25.000 KGM còn nguồn kia ghi 25 TNE, hoặc tên doanh nghiệp viết khác nhau.</p>
         <h4>Công thức</h4>
-        <F>{"Tỷ lệ lệch = |Đơn giá × Lượng − Trị giá| / Trị giá\nLệch > ngưỡng  ⇒  \"Lệch vượt ngưỡng\""}</F>
+        <F>{"Tỷ lệ lệch = |Đơn giá × Lượng − Trị giá| / Trị giá\nLệch > ngưỡng  ⇒  \"Lệch vượt ngưỡng\"\nĐơn giá gốc quy đổi (USD/tấn) = Đơn giá ÷ Hệ số quy đổi  ↔  Đơn giá (USD/tấn) = Trị giá / Lượng (tấn)"}</F>
         <ul>
-          <li>Dòng vừa được bổ sung ở bước 4 luôn khớp theo cấu trúc ⇒ ghi "Đã bổ sung (không kiểm được)" thay vì "Hợp lệ" để không tô đẹp số liệu.</li>
+          <li>Dòng vừa được bổ sung ở bước 5 luôn khớp theo cấu trúc ⇒ ghi "Đã bổ sung (không kiểm được)" thay vì "Hợp lệ" để không tô đẹp số liệu.</li>
+          <li>Đơn giá gốc quy đổi chênh nhiều lần so với Đơn giá (USD/tấn) ⇒ cột Đơn giá gốc hoặc đơn vị không tin cậy; Đơn giá (USD/tấn) tính từ Trị giá / Lượng (tấn) nên không bị ảnh hưởng.</li>
           <li>Kết quả dùng ở bước 13: quy tắc mặc định chỉ loại dòng VỪA lệch giá trị VỪA giá trị ngoại lai IQR.</li>
         </ul>
+        <h4>Trùng giữa các nguồn</h4>
+        <p>Cùng năm · cùng doanh nghiệp mua hoặc doanh nghiệp bán (mã nhóm từ bước 4) · cùng Lượng (tấn) · cùng trị giá (±1 USD) · ngày lệch ≤ 10 ngày · nhưng khác "Nguồn dữ liệu" ⇒ đánh dấu bản ghi ưu tiên thấp hơn (giữ bản ghi nhập khẩu của chính nước mua). Rất hay gặp khi gộp dữ liệu hải quan của nước mua với dữ liệu xuất khẩu hoặc dữ liệu tổng hợp của bên thứ ba — nếu không loại, giá trị của nhà nhập khẩu bị đếm đôi. Loại hay không loại khỏi xếp hạng & chỉ số: chọn ở bước 8.</p>
       </>
     ),
   },
@@ -138,14 +143,14 @@ export const GUIDES = {
     tagline: "Gộp các tên gọi khác nhau nhưng cùng chỉ một doanh nghiệp, áp dụng thống nhất cho dữ liệu của tất cả các năm.",
     purpose: "Một doanh nghiệp có thể xuất hiện dưới nhiều tên do khác biệt về ngôn ngữ, cách viết tắt hoặc lỗi chính tả. Chuẩn hóa và gộp đúng tên giúp kết quả thống kê, xếp hạng chính xác hơn.",
     todo: "Bạn có thể giữ nguyên thiết lập mặc định và chọn Chạy. Sau đó, lọc các trường hợp Cần rà soát để kiểm tra; nếu cần, cập nhật kết quả bằng file từ điển.",
-    result: "Kết quả gồm từ điển tên doanh nghiệp mua và bán, với mã nhóm, tên chuẩn hóa, độ tin cậy, cảnh báo rủi ro và thông tin về các tên trùng giữa những nguồn dữ liệu.",
+    result: "Kết quả gồm từ điển tên doanh nghiệp mua và bán, với mã nhóm, tên chuẩn hóa, độ tin cậy và cảnh báo rủi ro — dùng cho đối chiếu trùng nguồn (bước 7) và xếp hạng (bước 8).",
     details: (
       <>
         <h4>Các tầng so khớp</h4>
         <ol>
           <li><b>Placeholder</b>: TO ORDER, NONE, N/A, ô trống, "THEO LỆNH"… ⇒ [Không xác định], không tạo doanh nghiệp.</li>
           <li><b>Từ điển người dùng</b> (nếu tải lên) — ưu tiên tuyệt đối.</li>
-          <li><b>Khóa lõi</b>: bỏ dấu, chuyển chữ Kirin sang Latin, bỏ hình thức pháp lý (CO LTD, JSC, TNHH, CTCP, MTV, PT, Sdoanh nghiệp BHD, OOO…), dịch cụm tiếng Việt sang tiếng Anh (THƯƠNG MẠI→TRADING, PHÂN BÓN→FERTILIZER…), chuẩn đồng nghĩa (CHEMICALS→CHEMICAL…). Từ chung được sắp xếp, <b>phần tên riêng giữ nguyên thứ tự</b> ⇒ "Phân bón Phú Bình" ≡ "Phu Binh Fertilizer" nhưng "Phú Hưng" ≠ "Hưng Phú". Độ tin cậy: <b>Chính xác / Cao</b>.</li>
+          <li><b>Khóa lõi</b>: bỏ dấu, chuyển chữ Kirin sang Latin, bỏ hình thức pháp lý (CO LTD, JSC, TNHH, CTCP, MTV, PT, SDN BHD, OOO…), dịch cụm tiếng Việt sang tiếng Anh (THƯƠNG MẠI→TRADING, PHÂN BÓN→FERTILIZER…), chuẩn đồng nghĩa (CHEMICALS→CHEMICAL…). Từ chung được sắp xếp, <b>phần tên riêng giữ nguyên thứ tự</b> ⇒ "Phân bón Phú Bình" ≡ "Phu Binh Fertilizer" nhưng "Phú Hưng" ≠ "Hưng Phú". Độ tin cậy: <b>Chính xác / Cao</b>.</li>
           <li><b>Trùng phần tên riêng</b> (bỏ từ chung): "Lam Hong Co., Ltd." ≡ "Lam Hong Trading Company". Chặn tên riêng quá phổ biến (&gt; 6 biến thể). Độ tin cậy <b>Trung bình</b> ⇒ Cần rà soát.</li>
           <li><b>Lỗi chính tả</b>: khoảng cách Levenshtein trên phần tên riêng ≥ 10 ký tự, tối đa 1 lỗi (10–19 ký tự) hoặc 2 lỗi (≥ 20 ký tự). Độ tin cậy <b>Thấp/Trung bình</b> ⇒ Cần rà soát.</li>
         </ol>
@@ -156,8 +161,8 @@ export const GUIDES = {
         </ul>
         <h4>Tên hiển thị</h4>
         <p>Chọn từ một biến thể <b>có thật</b> trong dữ liệu (ưu tiên tên tiếng Anh, giá trị lớn, không bị cắt cụt), chỉ làm sạch hậu tố pháp lý và kiểu chữ — không ghép/dịch ra tên không tồn tại.</p>
-        <h4>Trùng giữa các nguồn</h4>
-        <p>Cùng năm · cùng lượng · cùng trị giá (±1 USD) · cùng doanh nghiệp mua hoặc doanh nghiệp bán · ngày lệch ≤ 10 ngày · nhưng khác "Nguồn dữ liệu" ⇒ đánh dấu bản ghi ưu tiên thấp hơn (giữ bản ghi nhập khẩu của chính nước mua). Rất hay gặp khi gộp dữ liệu hải quan của nước mua với dữ liệu xuất khẩu hoặc dữ liệu tổng hợp của bên thứ ba — nếu không loại, giá trị của nhà nhập khẩu bị đếm đôi.</p>
+        <h4>Vì sao làm đầu tiên</h4>
+        <p>Chuẩn hóa tên là bước đầu của giai đoạn làm sạch: mã nhóm doanh nghiệp thống nhất mọi năm được dùng ngay ở bước 7 để nhận ra cùng một lô hàng ghi ở hai nguồn với tên viết khác nhau (tiếng Việt / tiếng Anh), rồi ở bước 8 để xếp hạng.</p>
         <h4>Sửa kết quả gộp</h4>
         <p>Xuất "Tệp rà soát tên doanh nghiệp" → điền cột <b>Tên chuẩn hóa (sửa)</b> (cùng tên ⇒ gộp; tên khác ⇒ tách; <code>#LOAI</code> ⇒ coi là không xác định) → tải lại → Chạy lại. Tệp này dùng lại được cho các lần cập nhật dữ liệu sau.</p>
       </>
@@ -175,7 +180,7 @@ export const GUIDES = {
         <h4>Cách tính</h4>
         <F>{"Giá trị doanh nghiệp (năm, phạm vi) = Σ Trị giá (sạch) các dòng của doanh nghiệp\nTỷ trọng = Giá trị doanh nghiệp / Tổng giá trị doanh nghiệp xác định được trong phạm vi\nThuộc Top ⇔ lũy kế TRƯỚC doanh nghiệp đó < ngưỡng"}</F>
         <ul>
-          <li>Gộp theo <b>mã nhóm doanh nghiệp</b> từ bước 7 (bản cũ gộp theo chuỗi tên + chuỗi quốc gia ⇒ "Viet Nam" và "VIETNAM" bị tách).</li>
+          <li>Gộp theo <b>mã nhóm doanh nghiệp</b> từ bước 4 (bản cũ gộp theo chuỗi tên + chuỗi quốc gia ⇒ "Viet Nam" và "VIETNAM" bị tách).</li>
           <li>Placeholder bị loại khỏi mẫu số; tỷ trọng giá trị "không xác định" được báo riêng để bạn biết độ phủ.</li>
           <li>Dòng nghi trùng nguồn khác không được cộng (nếu bật).</li>
           <li>Phạm vi: Nhập khẩu (toàn cầu, Việt Nam, từng châu lục) · Xuất khẩu (toàn cầu, bán vào Việt Nam, từng châu lục xuất xứ).</li>
@@ -258,7 +263,7 @@ export const GUIDES = {
       <>
         <F>{"Nhóm = Năm × Phân khúc cuối cùng; giá = Đơn giá (USD/tấn) > 0\nQ1, Q3 tính như Excel QUARTILE.INC (nội suy tuyến tính)\nNgưỡng dưới = Q1 − k × IQR; Ngưỡng trên = Q3 + k × IQR"}</F>
         <ul>
-          <li>bản cũ lấy tứ phân vị bằng <code>sorted[floor(n × 0,25)]</code> — với n nhỏ Q3 có thể bằng giá trị lớn nhất ⇒ không bao giờ phát hiện được giá trị ngoại lai phía trên. Đã thay bằng chuẩn Excel để kết quả kiểm tra lại được trên Excel.</li>
+          <li>Bản cũ lấy tứ phân vị bằng <code>sorted[floor(n × 0,25)]</code> — với n nhỏ Q3 có thể bằng giá trị lớn nhất ⇒ không bao giờ phát hiện được giá trị ngoại lai phía trên. Đã thay bằng chuẩn Excel để kết quả kiểm tra lại được trên Excel.</li>
           <li>Nhóm có ít hơn số giá tối thiểu ⇒ "Không đủ dữ liệu" (không kết luận).</li>
           <li>Phân phối giá lệch phải (giá thuốc thử gấp 100 lần giá phân bón) ⇒ ngưỡng dưới âm, chỉ lọc được phía trên. Tùy chọn <b>logarit của giá</b> xử lý tốt hơn.</li>
         </ul>
@@ -294,7 +299,30 @@ export const GUIDES = {
           <li><b>Báo cáo kiểm toán</b>: tổng quan, chất lượng, bổ sung/đối chiếu, đơn vị, từ điển doanh nghiệp, biến thể tên để sửa, giá trị thay thế, trùng nguồn, nhóm doanh nghiệp Top, ngành, từ khóa, phân loại, IQR, chỉ số, tổng hợp nhiều năm, từ điển cột, cấu hình.</li>
           <li><b>Dữ liệu chi tiết</b>: mọi cột gốc + toàn bộ cột tính toán (bản cũ bỏ mất Lượng (tấn), Đơn giá USD/tấn, Cách phân loại…). Sheet "Sau lọc" chỉ gồm dòng Giữ lại = Có.</li>
           <li>Mỗi dòng có Nguồn – tệp / trang tính / dòng Excel gốc để truy vết.</li>
-          <li>Tiêu đề tiếng Anh dùng khi cần tương thích công thức/pivot cũ của bản cũ.</li>
+          <li>Tiêu đề tiếng Anh dùng khi cần tương thích công thức/pivot cũ.</li>
+        </ul>
+      </>
+    ),
+  },
+  review: {
+    tagline: "Hướng dẫn rà soát bộ dữ liệu đã xử lý: dòng nào loại khỏi database, cột nào cần đối chiếu chéo.",
+    purpose: "Giúp nhóm thống nhất cách làm sạch lần cuối trên dữ liệu công cụ đã xử lý, để bộ dữ liệu dùng cho báo cáo chỉ gồm giao dịch đúng sản phẩm, không trùng và có số liệu tin cậy.",
+    todo: "Xem các trường hợp và số dòng phát sinh, tải Tệp rà soát dữ liệu, điền cột Quyết định cho từng dòng, sửa tại gốc những lỗi sửa được trong công cụ rồi chạy lại.",
+    result: "Bảng trường hợp cần rà soát theo ba mức xử lý, các cặp cột cần đối chiếu chéo và tệp Excel rà soát (mỗi trường hợp một trang tính, có cột Quyết định & Ghi chú).",
+    details: (
+      <>
+        <h4>Ba mức xử lý</h4>
+        <ul>
+          <li><b>Loại khỏi database</b>: hàng ngoài phạm vi sản phẩm, mã HS của mặt hàng khác, giao dịch trùng giữa các nguồn, dòng trùng lặp do nhập hai lần, giao dịch không phải xuất nhập khẩu.</li>
+          <li><b>Giữ, không dùng cho giá & lượng</b>: giá/tấn phi lý mà không xác định được đơn vị đúng, không quy đổi được về tấn, thiếu trị giá, lệch giá trị nặng, giá trị ngoại lai IQR (theo quy tắc bước 13).</li>
+          <li><b>Giữ, ghi chú</b>: doanh nghiệp không xác định, người mua là đơn vị giao nhận, gộp tên cần rà soát, phân khúc từ khóa khác phân khúc ngành, chưa phân loại, ngày khác năm của trang tính.</li>
+        </ul>
+        <h4>Nguyên tắc</h4>
+        <ul>
+          <li>Sửa tại gốc trước khi xóa dòng: hệ số đơn vị (bước 6), từ điển doanh nghiệp (bước 4), từ khóa LOẠI TRỪ (bước 10), mã HS trong hồ sơ — rồi chạy lại để mọi số liệu nhất quán.</li>
+          <li>Dòng quyết định loại: tìm theo Nguồn – tệp / trang tính / dòng Excel trong tệp dữ liệu chi tiết; vẫn giữ tệp gốc để truy vết.</li>
+          <li>Một dòng có thể thuộc nhiều trường hợp — xử lý theo mức nặng nhất.</li>
+          <li>Ghi vào báo cáo số dòng và trị giá đã loại theo từng trường hợp.</li>
         </ul>
       </>
     ),

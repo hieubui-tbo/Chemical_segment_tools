@@ -100,12 +100,12 @@ export function UploadStep() {
               <span className="muted small">Dữ liệu chỉ xử lý trong trình duyệt của bạn — không gửi lên máy chủ.</span>
             </div>
           </Card>
-          <Card title="Quy trình 14 bước — 5 giai đoạn" sub="Mỗi bước chỉ mở khi bước trước đã xong; chạy lại một bước sẽ tự làm mới các bước sau.">
+          <Card title="Quy trình 15 bước — 5 giai đoạn" sub="Mỗi bước chỉ mở khi bước trước đã xong; chạy lại một bước sẽ tự làm mới các bước sau.">
             <div className="flow">
               {PHASES.map((p, i) => (
                 <div key={p.id} className="flow-item">
                   <span className="flow-badge" style={{ background: `linear-gradient(150deg, var(--phase-${p.id}), var(--phase-${p.id}-d))` }}>{p.id}</span>
-                  <div><b>{p.label}</b><span>{["Bước 1–3: Tải dữ liệu · Ánh xạ cột · Kiểm tra chất lượng", "Bước 4–6: Bổ sung số liệu · Đối chiếu giá trị · Quy đổi về tấn", "Bước 7–9: Chuẩn hóa doanh nghiệp · Xếp hạng Top 80% · Gán ngành", "Bước 10–13: Bộ từ khóa · Phân loại · Lọc giá trị ngoại lai IQR · Chỉ số phân khúc", "Bước 14: Báo cáo kiểm toán & dữ liệu chi tiết từng năm"][i]}</span></div>
+                  <div><b>{p.label}</b><span>{["Bước 1–3: Tải dữ liệu · Ánh xạ cột · Kiểm tra chất lượng", "Bước 4–7: Chuẩn hóa doanh nghiệp · Bổ sung số liệu · Quy đổi về tấn · Đối chiếu giá trị", "Bước 8–9: Xếp hạng Top 80% · Gán ngành", "Bước 10–13: Bộ từ khóa · Phân loại · Lọc giá trị ngoại lai IQR · Chỉ số phân khúc", "Bước 14–15: Báo cáo kiểm toán, dữ liệu chi tiết · Rà soát dữ liệu sau xử lý"][i]}</span></div>
                 </div>
               ))}
             </div>
@@ -309,7 +309,7 @@ export function QualityStep() {
   );
 }
 
-/* ═════════ BƯỚC 4 — BỔ SUNG ═════════ */
+/* ═════════ BƯỚC 5 — BỔ SUNG SỐ LIỆU ═════════ */
 export function BackfillStep() {
   const { state } = useApp();
   const R = state?.results?.backfill;
@@ -349,20 +349,26 @@ export function BackfillStep() {
   );
 }
 
-/* ═════════ BƯỚC 5 — ĐỐI CHIẾU GIÁ TRỊ ═════════ */
+/* ═════════ BƯỚC 7 — ĐỐI CHIẾU GIÁ TRỊ (sau làm sạch) ═════════ */
 export function ValidateStep() {
   const { state, run } = useApp();
   const R = state?.results?.validate;
-  const tol = state?.settings?.valueTolerance ?? 0.3;
+  const S = state?.settings || {};
+  const tol = S.valueTolerance ?? 0.3;
   const years = state?.years?.map((y) => y.year) || [];
-  const set = (v) => run("Cập nhật ngưỡng", "updateSettings", { partial: { valueTolerance: v } });
+  const upd = (partial) => run("Cập nhật thiết lập", "updateSettings", { partial });
+  const xs = R?.crossSource;
   return (
     <>
       <StepHero id="validate" />
+      <Callout kind="info" title="Đối chiếu trên số liệu đã làm sạch.">Bước này chạy sau khi đã chuẩn hóa tên doanh nghiệp (bước 4), bổ sung số liệu (bước 5) và quy đổi về tấn (bước 6) ⇒ so được đơn giá gốc với đơn giá USD/tấn, và nhận ra giao dịch trùng giữa các nguồn kể cả khi hai nguồn ghi tên hoặc đơn vị khác nhau.</Callout>
       <Card title="Thiết lập">
-        <Field label="Ngưỡng lệch cho phép" hint="Dòng có |Đơn giá × Lượng − Trị giá| / Trị giá lớn hơn ngưỡng sẽ bị đánh dấu. bản cũ dùng 30%.">
-          <Seg value={tol} onChange={set} options={[0.05, 0.1, 0.2, 0.3, 0.5].map((v) => ({ value: v, label: Math.round(v * 100) + "%" }))} />
-        </Field>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Field label="Ngưỡng lệch cho phép" hint="Dòng có |Đơn giá × Lượng − Trị giá| / Trị giá lớn hơn ngưỡng sẽ bị đánh dấu. Bản cũ dùng 30%.">
+            <Seg value={tol} onChange={(v) => upd({ valueTolerance: v })} options={[0.05, 0.1, 0.2, 0.3, 0.5].map((v) => ({ value: v, label: Math.round(v * 100) + "%" }))} />
+          </Field>
+          <Toggle checked={S.detectCrossSource} onChange={(v) => upd({ detectCrossSource: v })} color="var(--phase-B)" label="Phát hiện giao dịch trùng giữa các nguồn dữ liệu" />
+        </div>
       </Card>
       <RunBar id="validate" label="Chạy đối chiếu" note={`Ngưỡng hiện tại: ${Math.round(tol * 100)}%`} />
       {R && (
@@ -377,14 +383,24 @@ export function ValidateStep() {
               { key: "b30", label: "10–30%", num: true, render: (r) => n(r.b30) }, { key: "b100", label: "30–100%", num: true, render: (r) => n(r.b100) }, { key: "bInf", label: ">100%", num: true, render: (r) => n(r.bInf) },
             ]} rows={years.map((yr) => ({ y: yr, ...R.years[yr] }))} />
           </Card>
-          <Card title="Các dòng lệch lớn nhất" sub="Thường do đơn giá tính theo kg trong khi lượng tính theo tấn (hoặc ngược lại).">
+          <Card title="Các dòng lệch lớn nhất" sub="So Đơn giá gốc quy đổi về USD/tấn với Đơn giá (USD/tấn) = Trị giá / Lượng (tấn): chênh nhiều lần thường do đơn giá ghi theo đơn vị hoặc tiền tệ khác.">
             <Table maxHeight={380} columns={[
               { key: "year", label: "Năm" }, { key: "row", label: "Dòng", num: true },
               { key: "unitPrice", label: "Đơn giá", num: true, render: (r) => n(r.unitPrice, 4) }, { key: "quantity", label: "Lượng", num: true, render: (r) => n(r.quantity, 2) },
               { key: "unit", label: "ĐV" }, { key: "totalValue", label: "Trị giá", num: true, render: (r) => n(r.totalValue, 2) },
               { key: "calc", label: "ĐG × Lượng", num: true, render: (r) => n(r.calc, 2) }, { key: "diff", label: "Lệch", num: true, render: (r) => <Pill tone="bad">{pct(r.diff, 0)}</Pill> },
+              { key: "upMT", label: "ĐG gốc quy đổi (USD/t)", num: true, render: (r) => (Number.isFinite(r.upMT) ? n(r.upMT, 0) : "—") },
+              { key: "priceMT", label: "ĐG (USD/t)", num: true, render: (r) => (Number.isFinite(r.priceMT) ? n(r.priceMT, 0) : "—") },
               { key: "desc", label: "Mô tả", className: "clip", render: (r) => String(r.desc ?? "") },
             ]} rows={R.samples} />
+          </Card>
+          <Card title="Giao dịch trùng giữa các nguồn" sub="Cùng năm · cùng doanh nghiệp mua hoặc bán (mã nhóm, bước 4) · cùng Lượng (tấn) · cùng Trị giá (±1 USD) · ngày lệch ≤ 10 ngày · khác Nguồn dữ liệu.">
+            {!xs?.enabled ? <Empty title="Đang tắt tính năng" /> : !xs.mapped ? <Callout kind="info">Chưa ánh xạ cột <b>Nguồn dữ liệu</b> ở bước 2 nên không kiểm tra được.</Callout> : (
+              <>
+                <div className="kpis mb12"><Kpi label="Dòng nghi trùng" value={n(xs.rows)} color="var(--phase-B)" /><Kpi label="Trị giá nghi trùng" value={usd(xs.value)} color="var(--phase-B)" sub={S.excludeCrossSourceDup ? "sẽ loại khỏi xếp hạng & chỉ số" : "vẫn được tính (đã tắt loại ở bước 8)"} /></div>
+                <Table maxHeight={220} columns={[{ key: "pair", label: "Nguồn bị đánh dấu ↔ nguồn được giữ", className: "clip" }, { key: "rows", label: "Dòng", num: true, render: (r) => n(r.rows) }, { key: "value", label: "Trị giá", num: true, render: (r) => usd(r.value) }]} rows={xs.bySource.slice(0, 20)} />
+              </>
+            )}
           </Card>
         </>
       )}

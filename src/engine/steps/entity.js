@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
-   BƯỚC 7 — CHUẨN HÓA DOANH NGHIỆP (ENTITY RESOLUTION)
+   BƯỚC 4 — CHUẨN HÓA DOANH NGHIỆP (ENTITY RESOLUTION) — bước đầu của giai đoạn làm sạch
    Chạy MỘT LẦN trên toàn bộ các năm ⇒ mã nhóm & tên chuẩn hóa thống nhất giữa các năm.
+   (Phát hiện trùng giữa các nguồn chạy ở bước 7 — sau khi số liệu đã bổ sung & quy đổi về tấn.)
 
    Quy trình cho từng loại (DN mua / DN bán):
    1. Gom các tên thô giống nhau sau chuẩn hóa ký tự (+ quốc gia nếu nhóm theo quốc gia).
@@ -18,6 +19,7 @@ import { analyzeName, cleanDisplayName, compilePlaceholders, placeholderReason }
 import { resolveCountry, COUNTRY_STATUS } from "../dict/countries.js";
 import { normText, normHeader, levenshtein } from "../text.js";
 import { readReferenceTables } from "../io/read.js";
+import { parseNumberDetailed, positiveOrNull } from "../numbers.js";
 import { LABELS, CONF_RANK } from "../constants.js";
 
 const { CONF, REVIEW } = LABELS;
@@ -45,15 +47,28 @@ export function runEntity(engine, progress) {
     engine.entities[t.type] = res.dict;
     summary[t.type] = res.summary;
   });
-  summary.crossSource = detectCrossSource(engine, (p, m) => progress(0.98 + 0.02 * p, m));
   summary.settings = { supplierGroupByCountry: !!s.supplierGroupByCountry, fuzzyEnabled: !!s.fuzzyEnabled, fuzzyThreshold: s.fuzzyThreshold, overrides: engine.refs.overrides.entries.length };
   return summary;
+}
+
+/** Trị giá ước tính để xếp thứ tự biến thể tên khi bước 5 (bổ sung số liệu) chưa chạy:
+ *  Trị giá đọc được, hoặc Đơn giá × Lượng. */
+function estimateValues(y) {
+  const out = new Float64Array(y.n);
+  const num = (f, i) => positiveOrNull(parseNumberDetailed(val(y, f, i)).value);
+  for (let i = 0; i < y.n; i++) {
+    const tv = num("totalValue", i);
+    if (tv !== null) { out[i] = tv; continue; }
+    const up = num("unitPrice", i), q = num("quantity", i);
+    out[i] = up !== null && q !== null ? up * q : 0;
+  }
+  return out;
 }
 
 function resolveType(engine, t, ctx, progress) {
   const { type, prefix, nameField, countryField, byCountry } = t;
   const { ph, ovr, settings } = ctx;
-  const label = type === "Purchaser" ? "DN mua" : "Doanh nghiệp bán";
+  const label = type === "Purchaser" ? "Doanh nghiệp mua" : "Doanh nghiệp bán";
 
   /* 1) Gom cặp (tên chuẩn hóa ký tự, quốc gia) */
   const pairIndex = new Map();
@@ -61,7 +76,7 @@ function resolveType(engine, t, ctx, progress) {
   const rowPair = engine.years.map((y) => new Int32Array(y.n));
   const countryRows = { unmapped: 0, blank: 0 };
   engine.years.forEach((y, yi) => {
-    const TV = y.cols.TotalValue_Clean;
+    const TV = y.cols.TotalValue_Clean || estimateValues(y);
     const cName = new Array(y.n), cCont = new Array(y.n), cSea = new Array(y.n);
     for (let i = 0; i < y.n; i++) {
       const raw = val(y, nameField, i);
@@ -399,17 +414,18 @@ function lookupOverride(idx, norm, cKey, type) {
   return idx.get(`${norm}|${cKey}|${type}`) || idx.get(`${norm}||${type}`) || idx.get(`${norm}|${cKey}|`) || idx.get(`${norm}||`) || null;
 }
 
-/* ═════════ GIAO DỊCH TRÙNG GIỮA CÁC NGUỒN DỮ LIỆU ═════════
-   Cùng năm · cùng Lượng (2 số lẻ) · cùng Trị giá (làm tròn 1 USD) · cùng DN mua HOẶC DN bán (theo mã nhóm)
+/* ═════════ GIAO DỊCH TRÙNG GIỮA CÁC NGUỒN DỮ LIỆU (gọi ở bước 7) ═════════
+   Cùng năm · cùng Lượng (tấn, 3 số lẻ — hoặc lượng gốc nếu chưa quy đổi được) · cùng Trị giá (làm tròn 1 USD)
+   · cùng DN mua HOẶC DN bán (theo mã nhóm)
    · ngày lệch ≤ 10 ngày (nếu có ngày) · khác Nguồn dữ liệu  ⇒  đánh dấu bản ghi ưu tiên thấp hơn.
    Ưu tiên giữ: (3) bản ghi nhập khẩu của chính nước mua > (2) bản ghi xuất khẩu của nước xuất xứ > (1) nguồn khác. */
-function detectCrossSource(engine, progress) {
+export function detectCrossSource(engine, progress) {
   const out = { enabled: !!engine.settings.detectCrossSource, mapped: true, years: {}, rows: 0, value: 0, bySource: {} };
   if (!out.enabled) return out;
   if (engine.years.some((y) => y.map.dataSource < 0)) { out.mapped = false; return out; }
   const DAY = 86400000;
   engine.years.forEach((y, yi) => {
-    const Q = y.cols.Quantity_Clean, TV = y.cols.TotalValue_Clean;
+    const Q = y.cols.Quantity_Clean, TV = y.cols.TotalValue_Clean, QT = y.cols.Quantity_MT;
     const pE = y.cols.__entity_Purchaser, sE = y.cols.__entity_Supplier;
     const pC = y.cols.Purchaser_Country_Std, sC = y.cols.Supplier_Country_Std, D = y.cols.Date_Clean;
     const flag = new Array(y.n).fill("");
@@ -425,7 +441,8 @@ function detectCrossSource(engine, progress) {
     const groups = new Map();
     for (let i = 0; i < y.n; i++) {
       if (!(Q[i] > 0 && TV[i] > 0) || !src[i]) continue;
-      const k = Q[i].toFixed(2) + "|" + Math.round(TV[i]);
+      // so theo Lượng (tấn) ⇒ nhận được cả khi hai nguồn ghi khác đơn vị (25.000 KGM ≡ 25 TNE)
+      const k = (QT && QT[i] > 0 ? "t" + QT[i].toFixed(3) : "q" + Q[i].toFixed(2)) + "|" + Math.round(TV[i]);
       let g = groups.get(k); if (!g) { g = []; groups.set(k, g); } g.push(i);
     }
     let rows = 0, value = 0;

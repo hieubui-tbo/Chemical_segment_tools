@@ -13,7 +13,7 @@ import { resolveCountry } from "../dict/countries.js";
 import { normHeader } from "../text.js";
 import { LABELS } from "../constants.js";
 
-const A_NAME = ["purchaser standardize", "purchaser_standardize", "dn mua ten chuan hoa", "ten dn chuan hoa", "ten chuan hoa", "purchaser std", "purchaser", "ten doanh nghiep", "ten cong ty", "company", "company name", "importer", "buyer", "standardized name"];
+const A_NAME = ["purchaser standardize", "purchaser_standardize", "dn mua ten chuan hoa", "doanh nghiep mua ten chuan hoa", "ten dn chuan hoa", "ten chuan hoa", "purchaser std", "purchaser", "ten doanh nghiep", "ten cong ty", "company", "company name", "importer", "buyer", "standardized name"];
 const A_COUNTRY = ["purchasing country", "nuoc nhap khau chuan hoa", "nuoc nhap khau", "quoc gia", "country", "purchaser country std", "quoc gia mua"];
 const A_IND = ["industry", "nganh"];
 const A_SEG = ["industry segment", "industry_segment", "phan khuc nganh", "phan khuc", "segment", "industry seg"];

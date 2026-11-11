@@ -401,7 +401,7 @@ export function MetricsStep() {
 
 /* ═════════ BƯỚC 14 — XUẤT KẾT QUẢ ═════════ */
 export function ExportStep() {
-  const { state, run, download, setProfileOpen, yLabel } = useApp();
+  const { state, run, download, setProfileOpen, yLabel, go } = useApp();
   const S = state?.settings || {};
   const years = state?.years?.map((y) => y.year) || [];
   const ready = state?.steps?.find((s) => s.id === "metrics")?.state === "done";
@@ -436,6 +436,11 @@ export function ExportStep() {
           <Btn kind="ghost" icon={Download} disabled={!state?.results?.ranking} onClick={() => download("Tạo danh sách", "exportResearchMaster")}>Danh sách doanh nghiệp cần nghiên cứu ngành</Btn>
         </div>
       </Card>
+      <div className="action-bar">
+        <div className="note">Bước tiếp theo: rà soát bộ dữ liệu đã xử lý — trường hợp nào loại khỏi database, cột nào cần đối chiếu chéo.</div>
+        <div className="spacer" />
+        <Btn kind="primary" color="var(--phase-E)" icon={ArrowRight} onClick={() => go("review")}>Sang bước Rà soát dữ liệu sau xử lý</Btn>
+      </div>
     </>
   );
 }

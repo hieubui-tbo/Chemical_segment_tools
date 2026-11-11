@@ -397,3 +397,27 @@ textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
 .pf-bar-ico { width: 38px; height: 38px; border-radius: 11px; background: var(--brand-grad); display: grid; place-items: center; flex-shrink: 0; box-shadow: 0 6px 16px rgba(59,91,253,.3); }
 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ds-year.partial { background: rgba(232, 89, 12, .25); color: #FFD2B8; border: 1px dashed rgba(255, 180, 140, .6); }
+
+/* ── Bước 15: rà soát dữ liệu sau xử lý ── */
+.mt4 { margin-top: 4px; }
+.rv-tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rv-tier { border: 1px solid var(--border); border-top: 4px solid; border-radius: 12px; padding: 12px 14px; background: var(--surface, #fff); }
+.rv-tier-h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.rv-tier-t { font-size: 12.5px; line-height: 1.5; color: var(--ink-500); }
+.rv-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.5; }
+@media (max-width: 1100px) { .rv-tiers { grid-template-columns: 1fr; } }
+.rv-group + .rv-group { margin-top: 18px; }
+.rv-group-h { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13px; letter-spacing: .02em; text-transform: uppercase; margin-bottom: 8px; }
+.rv-case { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 150px; gap: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.rv-case + .rv-case { margin-top: 8px; }
+.rv-case.zero { background: var(--surface-2); }
+.rv-case.zero .rv-num { color: var(--ink-300); }
+.rv-title { font-weight: 700; font-size: 14px; line-height: 1.4; }
+.rv-id { display: inline-block; font-family: var(--mono, monospace); font-size: 11.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-3); border-radius: 6px; padding: 1px 6px; margin-right: 8px; }
+.rv-action { font-size: 12.5px; line-height: 1.5; color: var(--ink-500); margin-top: 4px; }
+.rv-meta { font-size: 12.5px; line-height: 1.45; display: grid; gap: 6px; }
+.rv-lbl { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-300); }
+.rv-count { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rv-num { font-size: 20px; font-weight: 800; line-height: 1.1; }
+.rv-num span { font-size: 12px; font-weight: 600; color: var(--ink-500); }
+@media (max-width: 1100px) { .rv-case { grid-template-columns: 1fr; } .rv-count { align-items: flex-start; text-align: left; } }

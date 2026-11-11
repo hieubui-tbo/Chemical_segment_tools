@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   BƯỚC 3–5: KIỂM TRA CHẤT LƯỢNG · BỔ SUNG SỐ LIỆU · ĐỐI CHIẾU GIÁ TRỊ
+   BƯỚC 3 KIỂM TRA CHẤT LƯỢNG · BƯỚC 5 BỔ SUNG SỐ LIỆU · BƯỚC 7 ĐỐI CHIẾU GIÁ TRỊ
    ═══════════════════════════════════════════════════════════════ */
 import { parseNumberDetailed, parseDate, detectDateOrder, positiveOrNull } from "../numbers.js";
 import { normText } from "../text.js";
@@ -7,6 +7,7 @@ import { lookupUnit } from "../dict/units.js";
 import { resolveCountry, COUNTRY_STATUS } from "../dict/countries.js";
 import { compilePlaceholders, placeholderReason } from "../names.js";
 import { SCHEMA_FIELDS } from "../constants.js";
+import { detectCrossSource } from "./entity.js";
 
 const NUM_FIELDS = ["unitPrice", "totalValue", "quantity"];
 const TEXT_FIELDS = ["productDesc", "supplier", "purchaser", "countryOrigin", "purchCountry", "unit"];
@@ -177,9 +178,11 @@ export function runBackfill(engine, progress) {
   return out;
 }
 
-/* ═════════ BƯỚC 5 — ĐỐI CHIẾU GIÁ TRỊ ═════════
-   Lệch = |Đơn giá × Lượng − Trị giá| / Trị giá. Lệch > ngưỡng (mặc định 30%) ⇒ "Lệch vượt ngưỡng".
-   Dòng vừa được bổ sung ở bước 4 khớp theo cấu trúc nên không kiểm được ⇒ ghi rõ "Đã bổ sung". */
+/* ═════════ BƯỚC 7 — ĐỐI CHIẾU GIÁ TRỊ (sau khi đã làm sạch tên, số liệu, đơn vị) ═════════
+   (1) Lệch = |Đơn giá × Lượng − Trị giá| / Trị giá. Lệch > ngưỡng (mặc định 30%) ⇒ "Lệch vượt ngưỡng".
+       Dòng vừa được bổ sung ở bước 5 khớp theo cấu trúc nên không kiểm được ⇒ ghi rõ "Đã bổ sung".
+       Kèm Đơn giá gốc quy về USD/tấn (Đơn giá ÷ hệ số quy đổi) để so trực tiếp với Đơn giá (USD/tấn) = Trị giá / Lượng (tấn).
+   (2) Giao dịch trùng giữa các nguồn: so theo mã nhóm doanh nghiệp (bước 4) + Lượng (tấn) (bước 6) + Trị giá (bước 5). */
 export const VC = { OK: "Hợp lệ", BAD: "Lệch vượt ngưỡng", MISSING: "Thiếu dữ liệu", BACKFILLED: "Đã bổ sung (không kiểm được)" };
 
 export function runValidate(engine, progress) {
@@ -188,7 +191,9 @@ export function runValidate(engine, progress) {
   const flaggedAll = [];
   engine.years.forEach((y, yi) => {
     const UP = y.cols.UnitPrice_Clean, TV = y.cols.TotalValue_Clean, Q = y.cols.Quantity_Clean, BF = y.cols.Backfill_Field;
-    const chk = new Array(y.n), diff = new Float64Array(y.n).fill(NaN);
+    const F = y.cols.Conversion_Factor, PMT = y.cols.UnitPrice_per_MT;
+    const chk = new Array(y.n), diff = new Float64Array(y.n).fill(NaN), upMT = new Float64Array(y.n).fill(NaN);
+    for (let i = 0; i < y.n; i++) if (UP[i] > 0 && F && F[i] > 0) upMT[i] = UP[i] / F[i];
     const c = { ok: 0, bad: 0, missing: 0, backfilled: 0, b1: 0, b10: 0, b30: 0, b100: 0, bInf: 0 };
     for (let i = 0; i < y.n; i++) {
       if (BF[i]) { chk[i] = VC.BACKFILLED; c.backfilled++; continue; }
@@ -199,14 +204,15 @@ export function runValidate(engine, progress) {
         if (d <= 0.01) c.b1++; else if (d <= 0.1) c.b10++; else if (d <= 0.3) c.b30++; else if (d <= 1) c.b100++; else c.bInf++;
         if (d > tol) {
           chk[i] = VC.BAD; c.bad++;
-          if (flaggedAll.length < 5000) flaggedAll.push({ year: y.year, row: y.rowNum[i], unitPrice: up, quantity: q, totalValue: tv, calc: up * q, diff: d, unit: val(y, "unit", i), desc: val(y, "productDesc", i) });
+          if (flaggedAll.length < 5000) flaggedAll.push({ year: y.year, row: y.rowNum[i], unitPrice: up, quantity: q, totalValue: tv, calc: up * q, diff: d, unit: val(y, "unit", i), desc: val(y, "productDesc", i), upMT: upMT[i], priceMT: PMT ? PMT[i] : NaN });
         } else { chk[i] = VC.OK; c.ok++; }
       } else { chk[i] = VC.MISSING; c.missing++; }
       if ((i & 16383) === 0) progress((yi + i / y.n) / engine.years.length, `Năm ${y.year}`);
     }
-    y.cols.Value_Check = chk; y.cols.Value_Check_Diff = diff;
+    y.cols.Value_Check = chk; y.cols.Value_Check_Diff = diff; y.cols.UnitPrice_Orig_per_MT = upMT;
     out.years[y.year] = { rows: y.n, ...c };
   });
   out.samples = flaggedAll.sort((a, b) => b.diff - a.diff).slice(0, 50);
+  out.crossSource = detectCrossSource(engine, (p, m) => progress(0.9 + 0.1 * p, m));
   return out;
 }

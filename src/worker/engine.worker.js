@@ -5,6 +5,7 @@
    ═══════════════════════════════════════════════════════════════ */
 import { Engine, EngineError } from "../engine/engine.js";
 import * as X from "../engine/io/export.js";
+import { computeReview } from "../engine/review.js";
 import * as V from "../engine/views.js";
 import { testKeywords } from "../engine/steps/keywords.js";
 
@@ -48,6 +49,8 @@ const API = {
   exportResearch: ({ kind }) => fileOut(X.buildResearchWorkbook(engine, kind)),
   exportResearchMaster: () => fileOut(X.buildResearchMasterWorkbook(engine)),
   exportEntityReview: () => fileOut(X.buildEntityReviewWorkbook(engine)),
+  getReview: () => computeReview(engine),
+  exportDataReview: () => fileOut(X.buildDataReviewWorkbook(engine)),
   exportTemplate: ({ kind }) => fileOut(X.buildTemplate(kind)),
   // hồ sơ sản phẩm
   exportProject: ({ meta, opts } = {}) => fileOut(X.exportProject(engine, meta, opts)),

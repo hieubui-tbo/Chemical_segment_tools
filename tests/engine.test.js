@@ -9,6 +9,8 @@ import { compileMatcher } from "../src/engine/steps/classify.js";
 import { inferPackageKg } from "../src/engine/steps/price.js";
 import { Engine } from "../src/engine/engine.js";
 import * as X from "../src/engine/io/export.js";
+import { STEPS } from "../src/engine/constants.js";
+import { computeReview, REVIEW_CASES } from "../src/engine/review.js";
 import { buildWorkbookA, buildWorkbookB, buildKeywords, buildIndustryV17, buildMultiYearWorkbook, buildMultiYearRows, H as HEADERS } from "./fixtures.js";
 
 describe("Đọc số chịu lỗi", () => {
@@ -98,7 +100,7 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
     e.confirmSources([]);
     e.confirmSchema();
     e.loadKeywords(buildKeywords(), "kw.xlsx");
-    for (const s of ["quality", "backfill", "validate", "units", "entity", "ranking"]) e.runStep(s);
+    for (const s of ["quality", "entity", "backfill", "units", "validate", "ranking"]) e.runStep(s);
     e.loadIndustry(buildIndustryV17(), "industry_v17.xlsx");
     for (const s of ["industry", "classify", "iqr", "metrics"]) e.runStep(s);
   });
@@ -181,11 +183,13 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
     const i = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).includes("SURYA KIMIA"));
     expect(col("2024", "Industry_Segment")[i]).toBe("Công nghiệp");
   });
-  it("chạy lại bước 7 xóa kết quả các bước sau (không còn dữ liệu lệch pha)", () => {
+  it("chạy lại bước 4 (chuẩn hóa doanh nghiệp) xóa kết quả các bước sau (không còn dữ liệu lệch pha)", () => {
     e.updateSettings({ fuzzyEnabled: false });
     expect(e.stepState("ranking")).toBe("pending");
     expect(e.years[0].cols.Final_Segment).toBeUndefined();
-    expect(e.years[0].cols.Quantity_MT).toBeDefined(); // bước 6 vẫn giữ
+    expect(e.years[0].cols.Quantity_MT).toBeUndefined(); // bước 6 nằm sau bước 4 ⇒ phải chạy lại
+    expect(e.years[0].cols.Cross_Source_Dup).toBeUndefined();
+    expect(e.years[0].cols.Duplicate_Flag).toBeDefined(); // bước 3 vẫn giữ
     e.runAll();
     expect(e.stepState("metrics")).toBe("done");
   });
@@ -202,6 +206,53 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
     for (const k of ["P_ALL", "P_VN", "P_CONT", "S_ALL", "S_VN", "S_CONT"]) expect(X.buildResearchWorkbook(e, k).buffer.byteLength).toBeGreaterThan(1000);
     const m = XLSX.read(new Uint8Array(X.buildResearchMasterWorkbook(e).buffer), { type: "array" });
     expect(XLSX.utils.sheet_to_json(m.Sheets[m.SheetNames[0]]).length).toBeGreaterThan(0);
+  });
+  it("bước 15: thống kê trường hợp rà soát khớp kết quả các bước & xuất tệp rà soát", () => {
+    const R = computeReview(e);
+    expect(R.ready).toBe(true);
+    const c = Object.fromEntries(R.cases.map((x) => [x.id, x]));
+    const outScope = Object.values(e.results.classify.years).reduce((a, y) => a + y.outOfScope, 0);
+    expect(c.R01.rows).toBe(outScope);
+    expect(c.R03.rows).toBe(e.results.validate.crossSource.rows);
+    expect(c.R06.rows).toBe(Object.values(e.results.units.years).reduce((a, y) => a + y.insane, 0));
+    expect(c.R09.rows).toBe(Object.values(e.results.validate.years).reduce((a, y) => a + y.bad, 0));
+    const wb = XLSX.read(new Uint8Array(X.buildDataReviewWorkbook(e).buffer), { type: "array" });
+    expect(wb.SheetNames.slice(0, 3)).toEqual(["00_Hướng dẫn", "01_Đối chiếu chéo", "02_Tổng hợp theo năm"]);
+    const r01 = wb.SheetNames.find((n) => n.startsWith("R01_"));
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[r01]);
+    expect(rows.length).toBe(c.R01.rows);
+    const hdr = XLSX.utils.sheet_to_json(wb.Sheets[r01], { header: 1 })[0];
+    expect(hdr).toContain("Quyết định (Giữ / Loại / Sửa)");
+    expect(hdr).toContain("Đơn giá gốc quy đổi (USD/tấn)");
+  });
+});
+
+describe("Quy trình mới: làm sạch trước, đối chiếu sau", () => {
+  it("thứ tự bước: chuẩn hóa doanh nghiệp → bổ sung số liệu → quy đổi đơn vị → đối chiếu → … → xuất → rà soát", () => {
+    expect(STEPS.map((s) => s.id)).toEqual(["upload", "schema", "quality", "entity", "backfill", "units", "validate", "ranking", "industry", "keywords", "classify", "iqr", "metrics", "export", "review"]);
+    expect(STEPS.map((s) => s.no)).toEqual(STEPS.map((_, i) => i + 1));
+    expect(REVIEW_CASES.length).toBeGreaterThanOrEqual(15);
+  });
+  it("trùng nguồn nhận được cả khi hai nguồn ghi khác đơn vị (25.000 KGM ≡ 25 TNE) & đối chiếu dùng giá USD/tấn", () => {
+    const aoa = [HEADERS,
+      ["Vietnam Customs", "2024-03-02", "28332100", "MAGNESIUM SULPHATE 25KG BAG", "KOVALIS CHEMIE GMBH", "CONG TY TNHH LAM HONG", "GERMANY", "VIETNAM", 7500, 0.3, 25000, "KGM"],
+      ["Germany Export", "2024-03-05", "28332100", "MAGNESIUM SULPHATE", "KOVALIS CHEMIE GMBH", "LAM HONG CO., LTD.", "GERMANY", "VIETNAM", 7500, 300, 25, "TNE"],
+      ["Vietnam Customs", "2024-05-02", "28332100", "MAGNESIUM SULPHATE", "KOVALIS CHEMIE GMBH", "CONG TY TNHH LAM HONG", "GERMANY", "VIETNAM", 9000, 7000000, 30, "TNE"],
+      ["Vietnam Customs", "2024-06-02", "28332100", "MAGNESIUM SULPHATE", "NORTHSTAR CHEM", "CONG TY TNHH KIM SON", "CHINA", "VIETNAM", 6000, 300, 20, "TNE"],
+    ];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), "2024");
+    const e = new Engine();
+    e.addFiles([{ name: "x.xlsx", buffer: XLSX.write(wb, { type: "array", bookType: "xlsx" }) }]);
+    e.confirmSources([]); e.confirmSchema();
+    for (const s of ["quality", "entity", "backfill", "units", "validate"]) e.runStep(s);
+    const y = e.years[0];
+    expect(e.results.validate.crossSource.rows).toBe(1);
+    expect(y.cols.Cross_Source_Dup[1]).toMatch(/Trùng với nguồn "Vietnam Customs"/);
+    // dòng 3: Đơn giá ghi theo nội tệ ⇒ lệch; giá gốc quy đổi khác hẳn giá USD/tấn
+    expect(y.cols.Value_Check[2]).toBe("Lệch vượt ngưỡng");
+    expect(y.cols.UnitPrice_per_MT[2]).toBeCloseTo(300, 0);
+    expect(y.cols.UnitPrice_Orig_per_MT[2]).toBeCloseTo(7000000, 0);
+    expect(y.cols.UnitPrice_Orig_per_MT[0]).toBeCloseTo(300, 0);
   });
 });
 
@@ -331,7 +382,7 @@ describe("Tùy biến theo ý đồ phân khúc", () => {
   it("ưu tiên ngành DN trước từ khóa / chỉ theo từ khóa", () => {
     const e = fresh();
     e.setKeywords(DEF);
-    for (const s of ["quality", "backfill", "validate", "units", "entity", "ranking"]) e.runStep(s);
+    for (const s of ["quality", "entity", "backfill", "units", "validate", "ranking"]) e.runStep(s);
     e.loadIndustry(buildIndustryV17(), "ind.xlsx");
     e.runAll();
     const kwFirst = e.results.classify.years["2023"];
@@ -438,7 +489,7 @@ describe("Đọc ngày & file CSV", () => {
     e.runStep("quality");
     expect(e.results.quality.years["2025"].date.order).toBe("mdy");
     // số trong CSV giữ dạng chữ nhưng vẫn đọc được
-    e.runStep("backfill");
+    e.runStep("entity"); e.runStep("backfill");
     expect(e.years[0].cols.TotalValue_Clean[0]).toBeGreaterThan(0);
   });
   it("sheet mang tên năm, chỉ vài dòng ngày lệch năm ⇒ giữ theo tên sheet (không tách)", () => {

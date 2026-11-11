@@ -213,7 +213,7 @@ export function StepHero({ id, extraChip }) {
           <div className="hero-side">
             <span className="hero-chip">
               {st.state === "done" ? <CheckCircle2 size={14} /> : st.state === "skipped" ? <SkipForward size={14} /> : st.can ? <Play size={13} /> : <Lock size={13} />}
-              {st.state === "pending" && !st.can ? (id === "keywords" ? "Soạn được ngay" : "Chưa mở khóa") : STATE_LABEL[st.state]}
+              {s.noRun ? "Không cần chạy" : st.state === "pending" && !st.can ? (id === "keywords" ? "Soạn được ngay" : "Chưa mở khóa") : STATE_LABEL[st.state]}
               {r?._ms ? ` · ${ms(r._ms)}` : ""}
             </span>
             {extraChip}

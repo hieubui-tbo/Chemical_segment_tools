@@ -10,13 +10,14 @@ import { n, ms } from "./ui/format.js";
 import { UploadStep, SchemaStep, QualityStep, BackfillStep, ValidateStep, UnitsStep } from "./steps/PrepSteps.jsx";
 import { EntityStep, RankingStep, IndustryStep } from "./steps/MarketSteps.jsx";
 import { KeywordsStep, ClassifyStep, IqrStep, MetricsStep, ExportStep } from "./steps/SegmentSteps.jsx";
+import { ReviewStep } from "./steps/ReviewStep.jsx";
 import orgLogo from "./assets/logo-tbo-mark.png";
 import { ProfileManager } from "./ui/ProfileManager.jsx";
 
 
 const VIEWS = {
   upload: UploadStep, schema: SchemaStep, quality: QualityStep, backfill: BackfillStep, validate: ValidateStep, units: UnitsStep,
-  entity: EntityStep, ranking: RankingStep, industry: IndustryStep, keywords: KeywordsStep, classify: ClassifyStep, iqr: IqrStep, metrics: MetricsStep, export: ExportStep,
+  entity: EntityStep, ranking: RankingStep, industry: IndustryStep, keywords: KeywordsStep, classify: ClassifyStep, iqr: IqrStep, metrics: MetricsStep, export: ExportStep, review: ReviewStep,
 };
 
 function Sidebar() {
@@ -41,7 +42,7 @@ function Sidebar() {
               const st = stepState(s.id);
               const active = current === s.id;
               const done = st.state === "done" || st.state === "skipped";
-              const reachable = st.can || done || s.id === "upload" || s.id === "export" || s.id === "keywords"; // bộ phân khúc soạn được bất cứ lúc nào
+              const reachable = st.can || done || s.id === "upload" || s.noRun || s.id === "keywords"; // bộ phân khúc soạn được bất cứ lúc nào
               const r = state?.results?.[s.id];
               return (
                 <button key={s.id} className={"nav-step" + (active ? " active" : "") + (done ? " done" : "")} disabled={!reachable} onClick={() => go(s.id)}>
@@ -50,7 +51,7 @@ function Sidebar() {
                   </span>
                   <span className="nav-txt">
                     <div className="nav-title">{s.short}</div>
-                    <div className="nav-meta">{st.state === "skipped" ? "Đã bỏ qua" : done ? `Hoàn tất${r?._ms ? " · " + ms(r._ms) : ""}` : st.can ? "Sẵn sàng chạy" : s.id === "keywords" ? "Soạn được ngay" : "Chờ bước trước"}</div>
+                    <div className="nav-meta">{st.state === "skipped" ? "Đã bỏ qua" : done ? `Hoàn tất${r?._ms ? " · " + ms(r._ms) : ""}` : s.noRun ? (st.can ? "Sẵn sàng" : "Xem được ngay") : st.can ? "Sẵn sàng chạy" : s.id === "keywords" ? "Soạn được ngay" : "Chờ bước trước"}</div>
                   </span>
                 </button>
               );
@@ -97,7 +98,7 @@ function Topbar() {
   const { state, current, run, go, busy, toast } = useApp();
   const s = STEPS[STEP_INDEX[current]];
   const ph = PHASES.find((p) => p.id === s.phase);
-  const work = STEPS.filter((x) => x.id !== "export");
+  const work = STEPS.filter((x) => !x.noRun);
   const doneCount = work.filter((x) => { const st = state?.steps.find((y) => y.id === x.id)?.state; return st === "done" || st === "skipped"; }).length;
   const runAll = async () => {
     const r = await run("Chạy tự động các bước còn lại", "runAll");

@@ -5,6 +5,7 @@
    - File nghiên cứu Top DN (theo phạm vi) & danh sách DN cần nghiên cứu ngành (gộp nhiều năm)
    - File rà soát tên DN (điền "Tên chuẩn hóa (sửa)" rồi tải lại làm từ điển)
    - File mẫu: bộ từ khóa, Industry Master, từ điển DN
+   - Tệp rà soát dữ liệu sau xử lý (bước 15): mỗi trường hợp một trang tính, cột đối chiếu + cột Quyết định
    ═══════════════════════════════════════════════════════════════ */
 import * as XLSX from "xlsx";
 import { COLUMN_DEFS, COLUMN_MAP, DETAIL_COMPUTED_ORDER, headerLabel } from "../columns.js";
@@ -14,6 +15,7 @@ import { scopeLabel } from "../steps/ranking.js";
 import { yearLabel, periodLabel } from "../period.js";
 import { normalizeProfile } from "../profile.js";
 import { applyProfile, profileFromEngine } from "../profileApply.js";
+import { REVIEW_CASES, REVIEW_TIERS, REVIEW_MODE, CROSS_CHECKS, REVIEW_STEPS, computeReview, reviewRowColumns, rowsOfCase } from "../review.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -55,7 +57,7 @@ export function buildAuditWorkbook(engine) {
     ["04_Quy đổi đơn vị", "Bảng đơn vị → hệ số quy đổi về tấn (nguồn hệ số, gợi ý, số dòng suy luận từ mô tả)."],
     ["05_Từ điển doanh nghiệp mua", "Mỗi dòng = một nhóm doanh nghiệp mua sau chuẩn hóa: mã, tên, các biến thể, giá trị, độ tin cậy, cảnh báo rủi ro."],
     ["06_Từ điển doanh nghiệp bán", "Tương tự cho doanh nghiệp bán (nhà cung cấp)."],
-    ["07_Biến thể tên (sửa)", "Mỗi dòng = một cách viết tên gốc. Điền cột \"Tên chuẩn hóa (sửa)\" rồi tải lại ở bước 7 để sửa gộp/tách."],
+    ["07_Biến thể tên (sửa)", "Mỗi dòng = một cách viết tên gốc. Điền cột \"Tên chuẩn hóa (sửa)\" rồi tải lại ở bước 4 để sửa gộp/tách."],
     ["08_Placeholder", "Các tên bị coi là không xác định (TO ORDER, NONE, ô trống…) và lý do."],
     ["09_Trùng nguồn", "Giao dịch nghi trùng giữa các nguồn dữ liệu (cặp nguồn, số dòng, giá trị)."],
     ["10_Top DN", "Danh sách doanh nghiệp thuộc Top theo từng năm & phạm vi."],
@@ -88,13 +90,13 @@ export function buildAuditWorkbook(engine) {
   row("Dòng trùng lặp hoàn toàn", (yr) => R.quality?.years[yr]?.duplicates);
   row("Dòng đủ dữ liệu cốt lõi (%)", (yr) => r2(R.quality?.years[yr]?.coreCompletePct * 100, 1));
   row("Dòng được bổ sung số liệu", (yr) => R.backfill?.years[yr]?.backfilled);
-  row("Dòng lệch giá trị vượt ngưỡng", (yr) => R.validate?.years[yr]?.bad);
   row("Dòng quy đổi được về tấn", (yr) => R.units ? R.units.years[yr].converted + R.units.years[yr].inferred : null);
   row("  trong đó suy luận từ mô tả", (yr) => R.units?.years[yr]?.inferred);
   row("Dòng có đơn giá USD/tấn", (yr) => R.units?.years[yr]?.priced);
   row("Dòng giá/tấn phi lý (nghi sai đơn vị)", (yr) => R.units?.years[yr]?.insane);
-  row("Dòng nghi trùng nguồn khác", (yr) => R.entity?.crossSource?.years?.[yr]?.rows);
-  row("Giá trị nghi trùng nguồn khác (USD)", (yr) => r2(R.entity?.crossSource?.years?.[yr]?.value, 0));
+  row("Dòng lệch giá trị vượt ngưỡng", (yr) => R.validate?.years[yr]?.bad);
+  row("Dòng nghi trùng nguồn khác", (yr) => R.validate?.crossSource?.years?.[yr]?.rows);
+  row("Giá trị nghi trùng nguồn khác (USD)", (yr) => r2(R.validate?.crossSource?.years?.[yr]?.value, 0));
   row("Doanh nghiệp mua thuộc Top (toàn cầu)", (yr) => R.ranking?.years[yr]?.scopes.P_ALL?.topCount);
   row("Doanh nghiệp mua thuộc Top (Việt Nam)", (yr) => R.ranking?.years[yr]?.scopes.P_VN?.topCount);
   row("Doanh nghiệp bán thuộc Top (toàn cầu)", (yr) => R.ranking?.years[yr]?.scopes.S_ALL?.topCount);
@@ -157,10 +159,10 @@ export function buildAuditWorkbook(engine) {
     addSheet(wb, used, "06_Từ điển doanh nghiệp bán", entSheet("Supplier"), [10, 44, 16, 14, 10, 26, 10, 90, 10, 18, 12, 40, 22, 40]);
     addSheet(wb, used, "07_Biến thể tên (sửa)", variantRows(engine), [10, 10, 44, 50, 16, 10, 16, 12, 22, 36, 40]);
     const ph = [["Loại", "Tên gốc", "Số dòng", "Trị giá (USD)", "Lý do"]];
-    ["Purchaser", "Supplier"].forEach((t) => engine.entities[t].placeholder.list.slice(0, 3000).forEach((p) => ph.push([t === "Purchaser" ? "DN mua" : "Doanh nghiệp bán", p.raw, p.count, r2(p.value, 0), p.reason])));
+    ["Purchaser", "Supplier"].forEach((t) => engine.entities[t].placeholder.list.slice(0, 3000).forEach((p) => ph.push([t === "Purchaser" ? "Doanh nghiệp mua" : "Doanh nghiệp bán", p.raw, p.count, r2(p.value, 0), p.reason])));
     addSheet(wb, used, "08_Placeholder", ph, [10, 50, 10, 16, 40]);
   }
-  const xs = R.entity?.crossSource;
+  const xs = R.validate?.crossSource;
   if (xs?.enabled && xs.mapped) {
     const a = [["Nguồn bị đánh dấu ↔ Nguồn được giữ", "Số dòng", "Trị giá (USD)"]];
     xs.bySource.forEach((b) => a.push([b.pair, b.rows, r2(b.value, 0)]));
@@ -270,12 +272,12 @@ export function buildAuditWorkbook(engine) {
 }
 
 const SETTING_LABELS = {
-  projectName: "Tên dự án", valueTolerance: "Ngưỡng lệch giá trị (bước 5)", unitFactors: "Hệ số đơn vị do người dùng nhập (bước 6)",
+  projectName: "Tên dự án", valueTolerance: "Ngưỡng lệch giá trị (bước 7)", unitFactors: "Hệ số đơn vị do người dùng nhập (bước 6)",
   inferPackageWeight: "Suy luận khối lượng bao bì từ mô tả (bước 6)", priceSanityCheck: "Đánh dấu giá/tấn phi lý – nghi sai đơn vị (bước 6)",
   priceBandMin: "Giá hợp lý tối thiểu USD/t (bước 6; 0 = tự động)", priceBandMax: "Giá hợp lý tối đa USD/t (bước 6; 0 = tự động)",
-  keywordFields: "Trường dùng để khớp từ khóa (bước 11)", segmentBasis: "Cách xác định phân khúc (bước 11)", supplierGroupByCountry: "Nhóm doanh nghiệp bán theo cả nước xuất xứ (bước 7)",
-  fuzzyEnabled: "Gộp gần đúng ký tự (bước 7)", fuzzyThreshold: "Ngưỡng giống nhau tối thiểu (bước 7)", customPlaceholders: "Placeholder bổ sung (bước 7)",
-  nameCase: "Kiểu chữ tên chuẩn hóa (bước 7)", detectCrossSource: "Phát hiện trùng giữa các nguồn (bước 7)", topThreshold: "Ngưỡng Top (bước 8)",
+  keywordFields: "Trường dùng để khớp từ khóa (bước 11)", segmentBasis: "Cách xác định phân khúc (bước 11)", supplierGroupByCountry: "Nhóm doanh nghiệp bán theo cả nước xuất xứ (bước 4)",
+  fuzzyEnabled: "Gộp gần đúng ký tự (bước 4)", fuzzyThreshold: "Ngưỡng giống nhau tối thiểu (bước 4)", customPlaceholders: "Placeholder bổ sung (bước 4)",
+  nameCase: "Kiểu chữ tên chuẩn hóa (bước 4)", detectCrossSource: "Phát hiện trùng giữa các nguồn (bước 7)", topThreshold: "Ngưỡng Top (bước 8)",
   rankingMetric: "Tiêu chí xếp hạng (bước 8)", excludeCrossSourceDup: "Loại dòng trùng nguồn khỏi xếp hạng/chỉ số (bước 8, 12, 13)",
   industryApplyScope: "Phạm vi gán ngành (bước 9)", keywordMatchMode: "Chế độ khớp từ khóa (bước 11)", iqrMinN: "Số giá tối thiểu mỗi nhóm IQR (bước 12)",
   iqrMultiplier: "Hệ số k của IQR (bước 12)", iqrLog: "Tính IQR trên logarit của giá (bước 12)", outlierRule: "Quy tắc loại giá trị ngoại lai (bước 13)",
@@ -290,7 +292,7 @@ function variantRows(engine) {
   const a = [["Loại", "Mã nhóm doanh nghiệp", "Tên chuẩn hóa hiện tại", "Tên gốc (biến thể)", "Quốc gia", "Số dòng", "Trị giá (USD)", "Độ tin cậy", "Trạng thái rà soát", "Cờ rủi ro", "Tên chuẩn hóa (sửa)"]];
   for (const t of ["Purchaser", "Supplier"]) {
     const E = engine.entities[t]?.entities || [];
-    E.slice().sort((x, y) => (x.review === y.review ? x.id.localeCompare(y.id) : x.review === LABELS.REVIEW.REVIEW ? -1 : 1)).forEach((e) => e.variants.forEach((v) => a.push([t === "Purchaser" ? "DN mua" : "Doanh nghiệp bán", e.id, e.name, v.raw, e.countryName, v.count, r2(v.value, 0), e.confidence, e.review, e.flags.join("; "), null])));
+    E.slice().sort((x, y) => (x.review === y.review ? x.id.localeCompare(y.id) : x.review === LABELS.REVIEW.REVIEW ? -1 : 1)).forEach((e) => e.variants.forEach((v) => a.push([t === "Purchaser" ? "Doanh nghiệp mua" : "Doanh nghiệp bán", e.id, e.name, v.raw, e.countryName, v.count, r2(v.value, 0), e.confidence, e.review, e.flags.join("; "), null])));
   }
   return a;
 }
@@ -304,7 +306,7 @@ export function buildEntityReviewWorkbook(engine) {
     ["2. Nếu một biến thể bị gộp SAI: điền tên đúng vào cột \"Tên chuẩn hóa (sửa)\" (tên mới ⇒ tách thành doanh nghiệp riêng)."],
     ["3. Nếu hai nhóm khác nhau thực ra là một doanh nghiệp: điền CÙNG một tên vào \"Tên chuẩn hóa (sửa)\" cho các biến thể của cả hai nhóm."],
     ["4. Nếu tên thực chất là \"không xác định\" (đại lý, ngân hàng, TO ORDER…): điền #LOAI."],
-    ["5. Lưu file, quay lại bước 7 → \"Tải từ điển doanh nghiệp\" → chạy lại bước 7. Chỉ các dòng có điền \"Tên chuẩn hóa (sửa)\" mới được dùng."],
+    ["5. Lưu file, quay lại bước 4 → \"Tải từ điển doanh nghiệp\" → chạy lại bước 4. Chỉ các dòng có điền \"Tên chuẩn hóa (sửa)\" mới được dùng."],
     ["6. Có thể giữ tệp này để dùng lại cho các dự án/các lần cập nhật dữ liệu sau."],
   ], [140]);
   return { filename: `${safeFileName(engine.settings.projectName)}_RaSoat_TenDN_${today()}.xlsx`, buffer: writeBook(wb) };
@@ -481,15 +483,15 @@ export function buildTemplate(kind) {
   if (kind === "overrides") {
     addSheet(wb, used, "Tu_dien_DN", [
       ["Loại", "Tên gốc (biến thể)", "Quốc gia", "Tên chuẩn hóa (sửa)"],
-      ["DN mua", "CONG TY TNHH THUONG MAI ABC (ví dụ)", "Vietnam", "ABC Trading Co., Ltd."],
-      ["DN mua", "ABC CO.,LTD. (ví dụ)", "Vietnam", "ABC Trading Co., Ltd."],
+      ["Doanh nghiệp mua", "CONG TY TNHH THUONG MAI ABC (ví dụ)", "Vietnam", "ABC Trading Co., Ltd."],
+      ["Doanh nghiệp mua", "ABC CO.,LTD. (ví dụ)", "Vietnam", "ABC Trading Co., Ltd."],
       ["Doanh nghiệp bán", "XYZ LOGISTICS COMPANY LIMITED (ví dụ)", "", "#LOAI"],
     ], [10, 50, 16, 40]);
     addSheet(wb, used, "Hướng dẫn", [
       ["• Bắt buộc: Tên gốc + Tên chuẩn hóa (sửa). Loại (doanh nghiệp mua/doanh nghiệp bán) và Quốc gia là tùy chọn (bỏ trống = áp dụng cho mọi trường hợp)."],
       ["• Các biến thể có cùng \"Tên chuẩn hóa (sửa)\" sẽ được gộp thành một doanh nghiệp, độ tin cậy = Đã xác nhận."],
       ["• Điền #LOAI để coi tên đó là không xác định (ví dụ: hãng tàu, forwarder, ngân hàng)."],
-      ["• Cách nhanh nhất: xuất tệp \"Rà soát tên doanh nghiệp\" ở bước 7, điền cột cuối, tải lại."],
+      ["• Cách nhanh nhất: xuất tệp \"Rà soát tên doanh nghiệp\" ở bước 4, điền cột cuối, tải lại."],
     ], [150]);
     return { filename: "Mau_Tu_Dien_DN.xlsx", buffer: writeBook(wb) };
   }
@@ -537,4 +539,42 @@ export function buildKeywordWorkbook(engine, def) {
   addSheet(wb, used, "Keyword_Matrix", aoa, [6, ...cols.map(() => 28)]);
   const name = engine.profile?.name || engine.settings.projectName;
   return { filename: `BoTuKhoa_${safeFileName(name).slice(0, 50)}_${today()}.xlsx`, buffer: writeBook(wb) };
+}
+
+/* ═════════ TỆP RÀ SOÁT DỮ LIỆU SAU XỬ LÝ (bước 15) ═════════ */
+export function buildDataReviewWorkbook(engine) {
+  if (!engine.years.length) throw new Error("Chưa có dữ liệu.");
+  const wb = XLSX.utils.book_new(); const used = new Set();
+  const R = computeReview(engine);
+  const st = Object.fromEntries(R.cases.map((c) => [c.id, c]));
+  const sheetName = (k) => `${k.id}_${k.short}`.slice(0, 31);
+  const guide = [
+    ["TỆP RÀ SOÁT DỮ LIỆU SAU XỬ LÝ — ChemSeg Analyst · The Blue Ocean"],
+    ["Dự án", engine.settings.projectName], ["Ngày xuất", today()],
+    ["Tổng số dòng", R.totalRows], ["Đang bị loại khỏi chỉ số giá (Giữ lại sau lọc = Không)", R.finalExcluded.rows],
+    [],
+    ["BA MỨC XỬ LÝ"], ...Object.values(REVIEW_TIERS).map((t) => [t.label, t.desc]),
+    [],
+    ["CÁCH DÙNG TỆP NÀY"], ...REVIEW_STEPS.map((x, i) => [`${i + 1}.`, x]),
+    [],
+    ["CÁC TRƯỜNG HỢP CẦN RÀ SOÁT", "Mức xử lý", "Công cụ xử lý thế nào", "Cách lọc trong tệp dữ liệu chi tiết", "Cột cần đối chiếu", "Việc cần làm", "Số dòng", "Trị giá (USD)", "Trang tính"],
+    ...REVIEW_CASES.map((k) => [`${k.id} · ${k.title}`, REVIEW_TIERS[k.tier].label, REVIEW_MODE[k.mode], k.filter, k.check, k.action, st[k.id].rows, r2(st[k.id].value, 0), st[k.id].rows ? sheetName(k) : "—"]),
+  ];
+  addSheet(wb, used, "00_Hướng dẫn", guide, [44, 30, 22, 46, 46, 70, 10, 16, 22]);
+  addSheet(wb, used, "01_Đối chiếu chéo", [["Cột A", "Đối chiếu với cột B", "Dấu hiệu bất thường", "Ý nghĩa / cách xử lý"], ...CROSS_CHECKS.map((c) => [c.a, c.b, c.signal, c.meaning])], [36, 44, 36, 70]);
+  const yl = Object.fromEntries(engine.years.map((y) => [y.year, yearLabel(y)]));
+  addSheet(wb, used, "02_Tổng hợp theo năm", [
+    ["Trường hợp", "Mức xử lý", ...R.years.flatMap((yr) => [`${yl[yr]} — dòng`, `${yl[yr]} — trị giá`]), "Tổng dòng", "Tổng trị giá"],
+    ...REVIEW_CASES.map((k) => [`${k.id} · ${k.title}`, REVIEW_TIERS[k.tier].label, ...R.years.flatMap((yr) => [st[k.id].years[yr]?.rows ?? 0, r2(st[k.id].years[yr]?.value ?? 0, 0)]), st[k.id].rows, r2(st[k.id].value, 0)]),
+  ], [44, 28, ...R.years.flatMap(() => [12, 16]), 12, 16]);
+  const cols = reviewRowColumns(engine, headerLabel);
+  const LIMIT = 30000;
+  for (const k of REVIEW_CASES) {
+    if (!st[k.id].rows) continue;
+    const list = rowsOfCase(engine, k.id, LIMIT);
+    const aoa = [cols.map((c) => c[0]), ...list.map(([y, i]) => cols.map((c) => c[1](y, i)))];
+    if (st[k.id].rows > LIMIT) aoa.push([`… còn ${st[k.id].rows - LIMIT} dòng — lọc trong tệp dữ liệu chi tiết theo: ${k.filter}`]);
+    addSheet(wb, used, sheetName(k), aoa);
+  }
+  return { filename: `${safeFileName(engine.settings.projectName)}_RaSoat_DuLieu_${today()}.xlsx`, buffer: writeBook(wb) };
 }
