@@ -260,6 +260,9 @@ PHRASES.sort((a, b) => b[0].length - a[0].length);
 
 const NOISE = /\b(THE|REPUBLIC OF|REP OF|REP|KINGDOM OF|STATE OF|ISLAMIC|FEDERAL|DEMOCRATIC|PEOPLES|PEOPLE S|SAR|PROVINCE OF)\b/g;
 
+/** Trạng thái nhận diện quốc gia — dùng hằng số này khi so sánh (đổi câu chữ ở một chỗ). */
+export const COUNTRY_STATUS = { OK: "Đã nhận diện", BLANK: "Trống", UNKNOWN: "Không nhận diện" };
+
 const cache = new Map();
 
 /**
@@ -283,20 +286,20 @@ const UNKNOWN_COUNTRY = new Set(["OTHER COUNTRY", "OTHER COUNTRIES", "VARIOS", "
 
 function resolveUncached(raw) {
   const n = normText(raw);
-  if (!n || UNKNOWN_COUNTRY.has(n)) return pack(null, "Trống");
+  if (!n || UNKNOWN_COUNTRY.has(n)) return pack(null, COUNTRY_STATUS.BLANK);
   // 1) khớp chính xác (tên, ISO2, ISO3, bí danh EN/VN)
-  if (EXACT.has(n)) return pack(EXACT.get(n), "Đã nhận diện");
+  if (EXACT.has(n)) return pack(EXACT.get(n), COUNTRY_STATUS.OK);
   // 2) bỏ phần trong ngoặc / từ nhiễu rồi thử lại
   const noParen = normText(String(raw).replace(/\(.*?\)/g, " "));
-  if (noParen && EXACT.has(noParen)) return pack(EXACT.get(noParen), "Đã nhận diện");
+  if (noParen && EXACT.has(noParen)) return pack(EXACT.get(noParen), COUNTRY_STATUS.OK);
   const denoised = n.replace(NOISE, " ").replace(/\s+/g, " ").trim();
-  if (denoised && EXACT.has(denoised)) return pack(EXACT.get(denoised), "Đã nhận diện");
+  if (denoised && EXACT.has(denoised)) return pack(EXACT.get(denoised), COUNTRY_STATUS.OK);
   // 3) chứa trọn một cụm tên quốc gia (≥4 ký tự, theo ranh giới từ) — ưu tiên cụm dài nhất
   const padded = " " + n + " ";
   for (const [ph, entry] of PHRASES) {
-    if (padded.includes(" " + ph + " ")) return pack(entry, "Đã nhận diện");
+    if (padded.includes(" " + ph + " ")) return pack(entry, COUNTRY_STATUS.OK);
   }
-  return pack(null, "Không nhận diện");
+  return pack(null, COUNTRY_STATUS.UNKNOWN);
 }
 
 export const VIETNAM_CODE = "VN";

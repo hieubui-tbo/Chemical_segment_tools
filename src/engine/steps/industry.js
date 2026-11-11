@@ -30,13 +30,13 @@ export function parseIndustryMaster(buffer, fileName, store) {
   let added = 0, emptySeg = 0;
   for (const t of tables) {
     const iN = findCol(t.headers, A_NAME), iC = findCol(t.headers, A_COUNTRY), iI = findCol(t.headers, A_IND), iS = findCol(t.headers, A_SEG);
-    if (iN < 0 || iS < 0) { warnings.push(`Sheet "${t.sheet}": thiếu cột tên DN hoặc cột Phân khúc ngành — bỏ qua.`); continue; }
+    if (iN < 0 || iS < 0) { warnings.push(`Sheet "${t.sheet}": thiếu cột tên doanh nghiệp hoặc cột Phân khúc ngành — bỏ qua.`); continue; }
     const rows = t.rows.map((r) => ({ name: r[iN], country: iC >= 0 ? r[iC] : null, industry: iI >= 0 ? r[iI] : null, segment: r[iS] }));
     const res = addIndustryRows(store, rows, fileName, t.sheet);
     added += res.added; emptySeg += res.emptySeg;
   }
   store.files = [...store.files.filter((f) => f.name !== fileName), { name: fileName, rows: added, emptySeg }];
-  if (!added) warnings.push("Không đọc được dòng nào có đủ Tên DN + Phân khúc ngành.");
+  if (!added) warnings.push("Không đọc được dòng nào có đủ Tên doanh nghiệp + Phân khúc ngành.");
   return { added, emptySeg, warnings, total: store.entries.length, conflicts: store.conflicts.length };
 }
 
@@ -67,6 +67,12 @@ export function addIndustryRows(store, rows, fileName, sheet = "") {
   return { added, emptySeg };
 }
 
+/** Nhãn cột "Cách khớp ngành". */
+export const IND_MATCH = {
+  EXACT: "Khớp theo tên chuẩn hóa", NO_COUNTRY: "Khớp theo tên (master không ghi quốc gia)", LOOSE: "Khớp theo tên lõi (gần đúng)",
+  NONE: "Không khớp", NOT_TOP: "Có trong master – ngoài Top (không gán)",
+};
+
 export function runIndustry(engine, progress) {
   const st = engine.refs.industry;
   if (!st.entries.length) return { _skipped: true, note: "Chưa có Industry Master." };
@@ -91,21 +97,21 @@ export function runIndustry(engine, progress) {
     let hit = null, how = "";
     for (const ck of keys) {
       const e = byKey.get(ck + "|" + ent.countryCode);
-      if (e) { hit = e; how = "Khớp theo tên chuẩn hóa"; break; }
+      if (e) { hit = e; how = IND_MATCH.EXACT; break; }
     }
     if (!hit) for (const ck of keys) {
       const list = (byCoreNoCountry.get(ck) || []).filter((e) => !e.countryCode);
-      if (list.length === 1) { hit = list[0]; how = "Khớp theo tên (master không ghi quốc gia)"; break; }
+      if (list.length === 1) { hit = list[0]; how = IND_MATCH.NO_COUNTRY; break; }
     }
     if (!hit) {
       for (const dk of ent.distinctKeys) {
         const list = byDistinct.get(dk.replace(/\s+/g, "") + "|" + ent.countryCode) || [];
-        if (list.length === 1) { hit = list[0]; how = "Khớp theo tên lõi (gần đúng)"; break; }
+        if (list.length === 1) { hit = list[0]; how = IND_MATCH.LOOSE; break; }
       }
     }
-    if (hit) { match[k] = { e: hit, how }; used.add(hit.key); if (how.startsWith("Khớp theo tên lõi")) loose++; else exact++; }
+    if (hit) { const isLoose = how === IND_MATCH.LOOSE; match[k] = { e: hit, how }; used.add(hit.key); if (isLoose) loose++; else exact++; }
   });
-  progress(0.4, "Đã khớp danh sách DN");
+  progress(0.4, "Đã khớp danh sách doanh nghiệp");
 
   const scopeTop = engine.settings.industryApplyScope === "top";
   const out = { years: {}, entitiesMatched: exact + loose, exact, loose, masterEntries: st.entries.length, unusedEntries: st.entries.length - used.size, scope: scopeTop ? "top" : "all" };
@@ -118,8 +124,8 @@ export function runIndustry(engine, progress) {
       if (TV[i] > 0) totalValue += TV[i];
       if (e < 0) continue;
       const m = match[e];
-      if (!m) { M[i] = "Không khớp"; continue; }
-      if (scopeTop && top[i] !== LABELS.YES) { M[i] = "Có trong master – ngoài Top (không gán)"; continue; }
+      if (!m) { M[i] = IND_MATCH.NONE; continue; }
+      if (scopeTop && top[i] !== LABELS.YES) { M[i] = IND_MATCH.NOT_TOP; continue; }
       I[i] = m.e.industry; S[i] = m.e.segment; M[i] = m.how; rows++;
       if (TV[i] > 0) value += TV[i];
     }
@@ -136,10 +142,10 @@ export function runIndustry(engine, progress) {
     m.years.add(yr); missing.set(r.e, m);
   })));
   // giá trị hiển thị = tổng trị giá toàn cầu của DN trong các năm thuộc Top (kể cả khi DN chỉ thuộc Top Việt Nam)
-  if (R) missing.forEach((m) => {
-    m.value = 0;
-    m.years.forEach((yr) => { const r = R.years[yr].P_ALL.list.find((x) => x.e === m.e); if (r) m.value += r.value; });
-  });
+  if (R) {
+    const valByYear = new Map(Object.entries(R.years).map(([yr, ys]) => [yr, new Map(ys.P_ALL.list.map((x) => [x.e, x.value]))]));
+    missing.forEach((m) => { m.value = 0; m.years.forEach((yr) => { m.value += valByYear.get(yr)?.get(m.e) || 0; }); });
+  }
   out.topMissing = [...missing.values()].sort((a, b) => b.value - a.value).map((m) => {
     const ent = P.entities[m.e];
     return { id: ent.id, name: ent.name, country: ent.countryName, value: m.value, years: [...m.years].sort().join(", ") };

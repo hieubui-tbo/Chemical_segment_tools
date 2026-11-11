@@ -1,15 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════
-   ChemSeg Analyst V18 — khung giao diện
+   ChemSeg Analyst — khung giao diện
    ═══════════════════════════════════════════════════════════════ */
 import { Check, Lock, AlertTriangle, Package, BookOpen, Rocket, RotateCcw, Loader2, X, CheckCircle2, XCircle, Info, HelpCircle, FlaskConical, ChevronDown } from "lucide-react";
 import { AppProvider, useApp } from "./ui/store.jsx";
-import { PHASES, STEPS, STEP_INDEX, APP_VERSION, GUIDE_URL } from "./engine/constants.js";
+import { PHASES, STEPS, STEP_INDEX, GUIDE_URL } from "./engine/constants.js";
 import { GUIDES } from "./ui/guides.jsx";
 import { Btn } from "./ui/components.jsx";
 import { n, ms } from "./ui/format.js";
 import { UploadStep, SchemaStep, QualityStep, BackfillStep, ValidateStep, UnitsStep } from "./steps/PrepSteps.jsx";
 import { EntityStep, RankingStep, IndustryStep } from "./steps/MarketSteps.jsx";
 import { KeywordsStep, ClassifyStep, IqrStep, MetricsStep, ExportStep } from "./steps/SegmentSteps.jsx";
+import orgLogo from "./assets/logo-tbo-mark.png";
 import { ProfileManager } from "./ui/ProfileManager.jsx";
 
 
@@ -25,11 +26,11 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark"><FlaskConical size={22} color="#fff" strokeWidth={2.4} /></div>
+        <img className="brand-logo" src={orgLogo} alt="The Blue Ocean" />
         <div>
           <div className="brand-name">ChemSeg Analyst</div>
           <div className="brand-sub">Xử lý dữ liệu XNK hóa chất & phân bón</div>
-          <span className="brand-ver">{APP_VERSION} · THE BLUE OCEAN</span>
+          <span className="brand-ver">THE BLUE OCEAN</span>
         </div>
       </div>
       <nav className="nav">
@@ -64,7 +65,8 @@ function Sidebar() {
             <>
               <div className="ds-big">{n(total)} <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-300)" }}>dòng</span></div>
               <div className="small" style={{ color: "var(--ink-300)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={files.join(", ")}>{files.join(", ")}</div>
-              <div className="ds-years">{state.years.map((y) => <span className="ds-year" key={y.year}>{y.year}</span>)}</div>
+              <div className="ds-years">{state.years.map((y) => <span className={"ds-year" + (y.coverage?.partial ? " partial" : "")} key={y.year} title={y.coverage ? `Dữ liệu từ ${y.coverage.from} đến ${y.coverage.to}` : "Chưa có cột Ngày"}>{y.label}</span>)}</div>
+              {state.years.length > 1 && <div className="small" style={{ color: "var(--ink-300)", marginTop: 6 }}>Giai đoạn: <b style={{ color: "#fff" }}>{state.period}</b></div>}
             </>
           ) : <div className="small" style={{ color: "var(--ink-300)", marginTop: 4 }}>Chưa nạp dữ liệu</div>}
         </div>
@@ -104,7 +106,7 @@ function Topbar() {
     if (r.run.stoppedAt) { toast("warn", `Đã chạy ${ran} bước — tạm dừng`, r.run.reason); go(r.run.stoppedAt); }
     else { toast("ok", `Đã chạy xong ${ran} bước`, "Sẵn sàng xuất kết quả."); go("export"); }
   };
-  const reset = async () => { if (window.confirm("Xóa dữ liệu đã nạp và mọi kết quả? (Thiết lập, bộ từ khóa, Industry Master, từ điển DN được giữ lại.)")) { await run("Làm mới", "resetAll"); go("upload"); } };
+  const reset = async () => { if (window.confirm("Xóa dữ liệu đã nạp và mọi kết quả? (Thiết lập, bộ từ khóa, Industry Master, từ điển doanh nghiệp được giữ lại.)")) { await run("Làm mới", "resetAll"); go("upload"); } };
   return (
     <header className="topbar">
       <div className="crumb" title={`Giai đoạn ${ph.id} · ${ph.label}`}><b>Bước {s.no}/{STEPS.length}</b> · {s.label}</div>

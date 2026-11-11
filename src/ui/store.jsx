@@ -74,6 +74,8 @@ export function AppProvider({ children }) {
   }, [run]);
 
   const stepState = useCallback((id) => state?.steps.find((s) => s.id === id) || { state: "pending", can: false }, [state]);
+  /** Nhãn năm có đánh dấu năm chưa trọn, vd "2026 (T1–T10)". */
+  const yLabel = useCallback((yr) => state?.years?.find((y) => y.year === yr)?.label || yr, [state]);
 
   /* ─────── hồ sơ sản phẩm ─────── */
   const refreshLocal = useCallback(() => setLocalProfiles(loadLocal()), []);
@@ -93,7 +95,7 @@ export function AppProvider({ children }) {
     let id = cur?.origin === "local" && !meta.asNew && (!meta.name || meta.name === cur.name) ? cur.id : slugify(p.name);
     if (taken.has(id)) id = uniqueId(id, taken);
     const prof = { ...p, id };
-    if (!saveLocal(prof)) { toast("bad", "Không lưu được vào trình duyệt", "Trình duyệt chặn lưu trữ (chế độ ẩn danh?). Hãy dùng “Xuất file hồ sơ”."); return null; }
+    if (!saveLocal(prof)) { toast("bad", "Không lưu được vào trình duyệt", "Trình duyệt chặn lưu trữ (chế độ ẩn danh?). Hãy dùng “Xuất tệp hồ sơ”."); return null; }
     refreshLocal();
     rememberLast(id, "local");
     const st = await call("markProfileSaved", { profile: { ...prof, _origin: "local" } });
@@ -116,11 +118,11 @@ export function AppProvider({ children }) {
   }, [run, toast, refreshLocal]);
 
   const value = useMemo(() => ({
-    state, setState, busy, run, query, download, uploadTo, toast, toasts, closeToast, current, setCurrent, help, setHelp, stepState,
+    state, setState, busy, run, query, download, uploadTo, toast, toasts, closeToast, current, setCurrent, help, setHelp, stepState, yLabel,
     profileOpen, setProfileOpen, library: LIBRARY, localProfiles, applyProfile, saveProfileLocal, removeLocal, importProfileFile,
     goNext: (id) => { const i = STEPS.findIndex((s) => s.id === id); if (i >= 0 && i < STEPS.length - 1) { setCurrent(STEPS[i + 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); } },
     go: (id) => { setCurrent(id); window.scrollTo({ top: 0, behavior: "smooth" }); },
-  }), [state, busy, run, query, download, uploadTo, toast, toasts, closeToast, current, help, stepState, profileOpen, localProfiles, applyProfile, saveProfileLocal, removeLocal, importProfileFile]);
+  }), [state, busy, run, query, download, uploadTo, toast, toasts, closeToast, current, help, stepState, yLabel, profileOpen, localProfiles, applyProfile, saveProfileLocal, removeLocal, importProfileFile]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

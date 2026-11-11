@@ -3,13 +3,22 @@ import { Download, KeyRound, Trash2, SkipForward, ArrowRight, FileSpreadsheet, F
 import { useApp } from "../ui/store.jsx";
 import { Card, Kpi, Btn, Pill, Callout, Field, Toggle, Seg, DropZone, Table, StepHero, RunBar, Empty, Tabs, RadioCards } from "../ui/components.jsx";
 import { SEGMENT_BASIS } from "../engine/constants.js";
+import { OUT_OF_SCOPE, UNCLASSIFIED } from "../engine/steps/price.js";
 import { PriceCompare, StackRows, MiniBox, useSegColors } from "../ui/charts.jsx";
 import { n, pct, usd, price } from "../ui/format.js";
 
 const XLS = ".xlsx,.xls,.xlsb,.csv";
-const YearSelect = ({ years, value, onChange }) => (
-  <select className="select" style={{ width: 110, padding: "6px 10px" }} value={value} onChange={(e) => onChange(e.target.value)}>{years.map((y) => <option key={y} value={y}>Năm {y}</option>)}</select>
-);
+function YearSelect({ years, value, onChange }) {
+  const { yLabel } = useApp();
+  return <select className="select" style={{ width: 200, padding: "6px 10px" }} value={value} onChange={(e) => onChange(e.target.value)}>{years.map((y) => <option key={y} value={y}>Năm {yLabel(y)}</option>)}</select>;
+}
+/** Cảnh báo năm chưa đủ 12 tháng. */
+function PartialYearNote() {
+  const { state } = useApp();
+  const p = (state?.years || []).filter((y) => y.coverage?.partial);
+  if (!p.length) return null;
+  return <Callout kind="warn" title="Năm chưa đủ 12 tháng:">{p.map((y) => y.label).join(", ")} — tổng lượng / trị giá thấp hơn năm đủ là do thiếu tháng, không nên so sánh trực tiếp. Giá bình quân, cơ cấu phân khúc vẫn so sánh được.</Callout>;
+}
 
 /* ═════════ BƯỚC 10 — BỘ PHÂN KHÚC & TỪ KHÓA ═════════ */
 const SEG_PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
@@ -97,7 +106,7 @@ export function KeywordsStep() {
             </>}>
             {dirty && <Callout kind="warn">Có thay đổi chưa áp dụng — bấm <b>Áp dụng</b> để dùng cho bước Phân loại.</Callout>}
             {!validNames && <Callout kind="bad">Tên phân khúc không được để trống hoặc trùng nhau.</Callout>}
-            {!def.segments.length && <Empty icon={Layers} title="Chưa có phân khúc nào">Bấm <b>Thêm phân khúc</b>, chọn một hồ sơ có sẵn ở bước 1, hoặc tải file Excel ở thẻ “Nhập / xuất Excel”.</Empty>}
+            {!def.segments.length && <Empty icon={Layers} title="Chưa có phân khúc nào">Bấm <b>Thêm phân khúc</b>, chọn một hồ sơ có sẵn ở bước 1, hoặc tải tệp Excel ở thẻ “Nhập / xuất Excel”.</Empty>}
             <div className="seg-grid">
               {draft.segments.map((sg, i) => (
                 <div key={sg.id} className="seg-card" style={{ "--seg-c": SEG_PALETTE[i % SEG_PALETTE.length] }}>
@@ -115,24 +124,24 @@ export function KeywordsStep() {
               ))}
               <div className="seg-card out">
                 <div className="seg-head"><b style={{ color: "var(--bad-d)" }}>LOẠI TRỪ — ngoài phạm vi sản phẩm</b></div>
-                <div className="hint">Mô tả chứa các từ này bị gắn “Ngoài phạm vi sản phẩm” và loại khỏi chỉ số giá (vd: hàng khác lẫn trong dữ liệu vận đơn).</div>
+                <div className="hint">Mô tả chứa các từ này bị gắn “Ngoài phạm vi sản phẩm” và loại khỏi chỉ số giá (ví dụ: hàng khác lẫn trong dữ liệu vận đơn).</div>
                 <textarea className="input" value={draft.excl} onChange={(e) => setDraft((d) => ({ ...d, excl: e.target.value }))} placeholder={"BENZYL\nZINC CHLORIDE"} />
               </div>
             </div>
             <div className="hint mt12">Quy ước: không phân biệt hoa/thường & dấu (PHÂN BÓN = PHAN BON) · khớp theo từ nguyên vẹn (UREA không khớp THIOUREA) · <code>*</code> ở cuối = mọi từ bắt đầu bằng (PHOSPHAT* → PHOSPHATE, PHOSPHATES) · chọn “Mô tả + mã HS” ở bước 11 để dùng từ khóa mã HS dạng <code>3102*</code>.</div>
           </Card>
           <Card title="Thử nhanh một mô tả" sub="Gõ hoặc dán một mô tả hàng hóa để xem bộ phân khúc (đang soạn) xếp nó vào đâu.">
-            <input className="input" value={testText} onChange={(e) => setTestText(e.target.value)} placeholder="vd: AMMONIUM CHLORIDE FERTILIZER GRADE N 25% MIN, 50KG BAG" />
+            <input className="input" value={testText} onChange={(e) => setTestText(e.target.value)} placeholder="Dán một mô tả hàng hóa, ví dụ: … FERTILIZER GRADE, 50KG BAG" />
             {testRes && (
               <div className="test-res">
-                <b>Kết quả:</b> {testRes.segment ? <Pill tone={testRes.segment === "Ngoài phạm vi sản phẩm" ? "bad" : "ok"}>{testRes.segment}</Pill> : <Pill tone="mute">Chưa phân loại</Pill>} {testRes.confidence && <span className="muted small">· {testRes.confidence}</span>}
+                <b>Kết quả:</b> {testRes.segment ? <Pill tone={testRes.segment === OUT_OF_SCOPE ? "bad" : "ok"}>{testRes.segment}</Pill> : <Pill tone="mute">Chưa phân loại</Pill>} {testRes.confidence && <span className="muted small">· {testRes.confidence}</span>}
                 {testRes.hits.length > 0 && <div className="small mt8">Từ khóa khớp: {testRes.hits.map((h, k) => <span key={k} className="chip" style={{ marginRight: 6 }}>{h.type === "exc" ? "−" : ""}{h.keyword} <span className="muted">({h.segment})</span></span>)}</div>}
                 {testRes.detail && testRes.detail.startsWith("(") && <div className="small muted mt8">{testRes.detail}</div>}
               </div>
             )}
           </Card>
           {state?.profile && (dirty || state.profile.modified) && (
-            <Callout kind="info" title="Lưu lại để dùng lần sau:">bộ phân khúc đã chỉnh chỉ có hiệu lực trong phiên này cho tới khi bạn lưu vào hồ sơ. <Btn kind="ghost" size="sm" icon={Save} disabled={dirty} onClick={() => saveProfileLocal({})}>Lưu vào hồ sơ “{state.profile.name}”</Btn>{dirty && <span className="small muted"> (bấm Áp dụng trước)</span>}</Callout>
+            <Callout kind="info" title="Lưu lại để dùng lần sau:">bộ phân khúc đã chỉnh chỉ có hiệu lực trong phiên này cho tới khi bạn lưu vào hồ sơ. <Btn kind="ghost" size="sm" icon={Save} disabled={dirty} onClick={() => saveProfileLocal({})}>Lưu vào hồ sơ “{state.profile.name}”</Btn>{dirty && <span className="small muted"> (chọn Áp dụng trước)</span>}</Callout>
           )}
         </>
       )}
@@ -149,7 +158,7 @@ export function KeywordsStep() {
                 <Kpi label="Ngoài phạm vi" value={pct(pv.totals.outValue / (pv.totals.value || 1), 1)} color="var(--bad)" sub={`${n(pv.totals.outRows)} dòng`} />
                 <Kpi label="Chưa phân loại" value={pct(pv.totals.unValue / (pv.totals.value || 1), 1)} color="var(--text-3)" sub={`${n(pv.totals.unRows)} dòng · ${n(pv.unmatchedDistinct)} mô tả`} />
                 <Kpi label="Hòa giữa phân khúc" value={n(pv.totals.ties)} color="var(--warn)" sub="nên rà soát" />
-                {pv.totals.noDesc > 0 && <Kpi label="Dòng không có mô tả" value={n(pv.totals.noDesc)} color="var(--text-3)" sub="cần ngành DN để phân loại" />}
+                {pv.totals.noDesc > 0 && <Kpi label="Dòng không có mô tả" value={n(pv.totals.noDesc)} color="var(--text-3)" sub="cần ngành doanh nghiệp để phân loại" />}
               </div>
               <CoverageBar pv={pv} colors={colors} />
               {dirty && <div className="hint mt8">Đây là kết quả của bản đang soạn (chưa áp dụng).</div>}
@@ -179,10 +188,10 @@ export function KeywordsStep() {
 
       {tab === "excel" && (
         <Card title="Nhập / xuất bộ phân khúc bằng Excel" sub="Định dạng: STT | Phân khúc 1 | Phân khúc 2 | … (từ khóa liệt kê dưới mỗi cột). Có thể thêm cột LOẠI TRỪ.">
-          <DropZone accept={XLS} color="var(--phase-D)" icon={KeyRound} title="Kéo thả file bộ từ khóa (thay thế bộ hiện tại)" sub="Hỗ trợ * (tiền tố), - (loại trừ riêng), cột LOẠI TRỪ (ngoài phạm vi sản phẩm)"
+          <DropZone accept={XLS} color="var(--phase-D)" icon={KeyRound} title="Kéo thả tệp bộ từ khóa (thay thế bộ hiện tại)" sub="Hỗ trợ * (tiền tố), - (loại trừ riêng), cột LOẠI TRỪ (ngoài phạm vi sản phẩm)"
             onFiles={(f) => uploadTo("loadKeywords", f.slice(0, 1), "Đọc bộ từ khóa")} />
           <div className="row mt12">
-            <Btn kind="ghost" size="sm" icon={Download} onClick={() => download("Tạo mẫu", "exportTemplate", { kind: "keywords" })}>File mẫu + quy ước</Btn>
+            <Btn kind="ghost" size="sm" icon={Download} onClick={() => download("Tạo mẫu", "exportTemplate", { kind: "keywords" })}>Tệp mẫu + quy ước</Btn>
             {def.segments.length > 0 && <Btn kind="ghost" size="sm" icon={FileSpreadsheet} onClick={() => download("Xuất bộ phân khúc", "exportKeywords", { def })}>Xuất bộ phân khúc đang soạn ra Excel</Btn>}
             {K && <Btn kind="danger" size="sm" icon={Trash2} onClick={() => run("Gỡ bộ từ khóa", "clearKeywords")}>Gỡ bộ phân khúc</Btn>}
           </div>
@@ -191,10 +200,10 @@ export function KeywordsStep() {
         </Card>
       )}
 
-      {skipped && <Callout kind="warn">Đang bỏ qua bộ từ khóa — phân loại chỉ dựa vào Phân khúc ngành của DN (bước 9).</Callout>}
+      {skipped && <Callout kind="warn">Đang bỏ qua bộ từ khóa — phân loại chỉ dựa vào Phân khúc ngành của doanh nghiệp (bước 9).</Callout>}
       <div className="action-bar">
         {(K || skipped) && !dirty && <Btn kind="primary" size="lg" color="var(--phase-D)" icon={ArrowRight} onClick={() => goNext("keywords")}>Sang bước Phân loại</Btn>}
-        {!K && !skipped && st.can && <Btn kind="ghost" icon={SkipForward} onClick={() => run("Bỏ qua", "skipStep", { id: "keywords" }, [], { success: "Đã bỏ qua bộ từ khóa", successDesc: "Phân loại sẽ chỉ dựa vào ngành của DN." })}>Không dùng từ khóa (bỏ qua)</Btn>}
+        {!K && !skipped && st.can && <Btn kind="ghost" icon={SkipForward} onClick={() => run("Bỏ qua", "skipStep", { id: "keywords" }, [], { success: "Đã bỏ qua bộ từ khóa", successDesc: "Phân loại sẽ chỉ dựa vào ngành của doanh nghiệp." })}>Không dùng từ khóa (bỏ qua)</Btn>}
         {dirty && <div className="note">Áp dụng thay đổi trước khi sang bước Phân loại.</div>}
       </div>
     </>
@@ -216,7 +225,7 @@ export function ClassifyStep() {
     <>
       <StepHero id="classify" />
       <Card title="Thiết lập theo ý đồ phân khúc" sub="Các lựa chọn này được lưu trong hồ sơ sản phẩm.">
-        <Field label="Cách xác định phân khúc" hint="Chọn theo câu hỏi nghiên cứu: phân khúc theo MÔ TẢ HÀNG HÓA (cấp chất lượng, ứng dụng ghi trên tờ khai) hay theo NGÀNH CỦA DN MUA (cần Industry Master ở bước 9).">
+        <Field label="Cách xác định phân khúc" hint="Chọn theo câu hỏi nghiên cứu: phân khúc theo MÔ TẢ HÀNG HÓA (cấp chất lượng, ứng dụng ghi trên tờ khai) hay theo NGÀNH CỦA doanh nghiệp MUA (cần Industry Master ở bước 9).">
           <RadioCards color="var(--phase-D)" value={S.segmentBasis || "keyword_first"} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { segmentBasis: v } })}
             options={Object.entries(SEGMENT_BASIS).map(([value, b]) => ({ value, label: b.label, desc: b.order, badge: value === "keyword_first" ? <Pill tone="ok">mặc định</Pill> : null }))} />
         </Field>
@@ -224,8 +233,8 @@ export function ClassifyStep() {
           <Field label="Trường dùng để khớp từ khóa" hint="“Mô tả + mã HS” cho phép phân khúc theo mã HS bằng từ khóa dạng 3102* (cần ánh xạ cột Mã HS ở bước 2).">
             <Seg value={S.keywordFields || "desc"} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { keywordFields: v } })} options={[{ value: "desc", label: "Mô tả hàng hóa" }, { value: "desc_hs", label: "Mô tả + mã HS" }]} />
           </Field>
-          <Field label="Cách khớp từ khóa" hint="Từ nguyên vẹn: “UREA” không khớp “THIOUREA”. Chứa chuỗi: giữ hành vi V17 (dễ khớp nhầm với từ khóa ngắn).">
-            <Seg value={S.keywordMatchMode} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { keywordMatchMode: v } })} options={[{ value: "word", label: "Từ nguyên vẹn (khuyến nghị)" }, { value: "substring", label: "Chứa chuỗi (như V17)" }]} />
+          <Field label="Cách khớp từ khóa" hint="Từ nguyên vẹn: “UREA” không khớp “THIOUREA”. Chứa chuỗi: giữ hành vi bản cũ (dễ khớp nhầm với từ khóa ngắn).">
+            <Seg value={S.keywordMatchMode} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { keywordMatchMode: v } })} options={[{ value: "word", label: "Từ nguyên vẹn (khuyến nghị)" }, { value: "substring", label: "Chứa chuỗi (như bản cũ)" }]} />
           </Field>
         </div>
       </Card>
@@ -234,15 +243,16 @@ export function ClassifyStep() {
         <>
           <div className="kpis mb12">
             <Kpi label="Phân loại theo từ khóa" value={pct(tot.keyword / tot.rows, 0)} color="var(--phase-D)" sub={`${n(tot.keyword)} dòng`} />
-            <Kpi label={R.basis === "industry_first" || R.basis === "industry_only" ? "Theo ngành của DN" : "Theo ngành (dự phòng)"} value={pct(tot.industry / tot.rows, 0)} color="var(--phase-C)" sub={`${n(tot.industry)} dòng`} />
+            <Kpi label={R.basis === "industry_first" || R.basis === "industry_only" ? "Theo ngành của doanh nghiệp" : "Theo ngành (dự phòng)"} value={pct(tot.industry / tot.rows, 0)} color="var(--phase-C)" sub={`${n(tot.industry)} dòng`} />
             <Kpi label="Chưa phân loại" value={pct(tot.unclassified / tot.rows, 0)} color="var(--text-3)" sub={`${n(tot.unclassified)} dòng · ${n(R.unclassifiedDistinct)} mô tả khác nhau`} />
             <Kpi label="Ngoài phạm vi sản phẩm" value={n(tot.outOfScope)} color="var(--bad)" sub="loại khỏi chỉ số giá" />
             <Kpi label="Hòa giữa phân khúc" value={n(tot.ties)} color="var(--warn)" sub="nên rà soát" />
             {tot.mismatch > 0 && <Kpi label="Từ khóa khác ngành" value={n(tot.mismatch)} color="var(--warn)" />}
           </div>
           {R.industryNotInMatrix?.length > 0 && <Callout kind="warn" title="Phân khúc ngành không trùng tên phân khúc trong bộ từ khóa:">{R.industryNotInMatrix.map((x) => `${x.segment} (${n(x.rows)} dòng)`).join(" · ")}. Nên thống nhất tên để báo cáo không bị tách phân khúc.</Callout>}
+          <PartialYearNote />
           <Card title="Cơ cấu trị giá theo phân khúc qua các năm" sub="Di chuột lên từng đoạn để xem chi tiết.">
-            <StackRows years={years} data={Object.fromEntries(years.map((yr) => [yr, R.years[yr].segments]))} colors={colors} />
+            <StackRows years={years} data={Object.fromEntries(years.map((yr) => [yr, R.years[yr].segments]))} colors={colors} labels={Object.fromEntries((state?.years || []).map((y) => [y.year, y.label]))} />
           </Card>
           <div className="grid-2">
             <Card title="Phân khúc theo năm" tools={<YearSelect years={years} value={year} onChange={setYear} />}>
@@ -280,17 +290,17 @@ export function IqrStep() {
       <StepHero id="iqr" />
       <Card title="Thiết lập">
         <div className="settings-grid">
-          <Field label="Hệ số k" hint="1,5 = chuẩn Tukey (V17). 3 = chỉ bắt ngoại lai cực đoan."><Seg value={S.iqrMultiplier} onChange={(v) => upd({ iqrMultiplier: v })} options={[{ value: 1.5, label: "1,5 (chuẩn)" }, { value: 2, label: "2" }, { value: 3, label: "3 (cực đoan)" }]} /></Field>
+          <Field label="Hệ số k" hint="1,5 = chuẩn Tukey. 3 = chỉ bắt giá trị ngoại lai cực đoan."><Seg value={S.iqrMultiplier} onChange={(v) => upd({ iqrMultiplier: v })} options={[{ value: 1.5, label: "1,5 (chuẩn)" }, { value: 2, label: "2" }, { value: 3, label: "3 (cực đoan)" }]} /></Field>
           <Field label="Số giá tối thiểu mỗi nhóm" hint="Ít hơn ⇒ “Không đủ dữ liệu”."><Seg value={S.iqrMinN} onChange={(v) => upd({ iqrMinN: v })} options={[4, 8, 12, 20].map((v) => ({ value: v, label: String(v) }))} /></Field>
-          <Field label="Thang đo" hint="Log phù hợp khi giá trải rộng nhiều bậc (thuốc thử vs phân bón)."><Toggle checked={S.iqrLog} onChange={(v) => upd({ iqrLog: v })} color="var(--phase-D)" label="Tính trên log(giá)" /></Field>
+          <Field label="Thang đo" hint="Log phù hợp khi giá trải rộng nhiều bậc (thuốc thử vs phân bón)."><Toggle checked={S.iqrLog} onChange={(v) => upd({ iqrLog: v })} color="var(--phase-D)" label="Tính trên logarit của giá" /></Field>
         </div>
       </Card>
       <RunBar id="iqr" label="Chạy lọc IQR" note="Nhóm theo Năm × Phân khúc cuối cùng; tứ phân vị như Excel QUARTILE.INC." />
       {R && (
         <>
           <div className="kpis mb12">
-            <Kpi label="Tổng dòng ngoại lai IQR (mọi năm)" value={n(totOut)} color="var(--phase-D)" />
-            <Kpi label="Thiết lập" value={`k = ${R.k}`} color="var(--text-3)" sub={`${R.useLog ? "log(giá)" : "giá gốc"} · tối thiểu ${R.minN} giá`} />
+            <Kpi label="Tổng dòng giá trị ngoại lai IQR (mọi năm)" value={n(totOut)} color="var(--phase-D)" />
+            <Kpi label="Thiết lập" value={`k = ${R.k}`} color="var(--text-3)" sub={`${R.useLog ? "logarit của giá" : "giá gốc"} · tối thiểu ${R.minN} giá`} />
           </div>
           <Card title="Thống kê theo phân khúc" sub="Hộp = Q1→Q3, vạch đậm = trung vị, râu = ngưỡng dưới→ngưỡng trên (USD/tấn)." tools={<YearSelect years={years} value={year} onChange={setYear} />}>
             <Table maxHeight={560} columns={[
@@ -311,12 +321,12 @@ export function IqrStep() {
 
 /* ═════════ BƯỚC 13 — CHỈ SỐ PHÂN KHÚC ═════════ */
 const RULES = [
-  { value: "AND", label: "AND — vừa lệch giá trị vừa ngoại lai IQR", desc: "Thận trọng nhất, giống V17. Có thể bỏ sót lỗi sai đơn vị (dòng sai đơn vị thường vẫn khớp Đơn giá × Lượng)." },
-  { value: "IQR", label: "IQR — mọi ngoại lai IQR", desc: "Khuyến nghị cho phân tích mặt bằng giá: loại mọi mức giá bất thường trong phân khúc." },
-  { value: "OR", label: "OR — lệch giá trị HOẶC ngoại lai IQR", desc: "Chặt nhất: loại thêm cả dòng có số liệu tự mâu thuẫn." },
+  { value: "AND", label: "AND — vừa lệch giá trị vừa giá trị ngoại lai IQR", desc: "Thận trọng nhất, giống bản cũ. Có thể bỏ sót lỗi sai đơn vị (dòng sai đơn vị thường vẫn khớp Đơn giá × Lượng)." },
+  { value: "IQR", label: "IQR — mọi giá trị ngoại lai IQR", desc: "Khuyến nghị cho phân tích mặt bằng giá: loại mọi mức giá bất thường trong phân khúc." },
+  { value: "OR", label: "OR — lệch giá trị HOẶC giá trị ngoại lai IQR", desc: "Chặt nhất: loại thêm cả dòng có số liệu tự mâu thuẫn." },
 ];
 export function MetricsStep() {
-  const { state, run } = useApp();
+  const { state, run, yLabel } = useApp();
   const S = state?.settings || {};
   const R = state?.results?.metrics;
   const years = state?.years?.map((y) => y.year) || [];
@@ -329,8 +339,8 @@ export function MetricsStep() {
     <>
       <StepHero id="metrics" />
       <div className="grid-2">
-        <Card title="Quy tắc loại ngoại lai">
-          <RadioCards color="var(--phase-D)" value={S.outlierRule} onChange={(v) => upd({ outlierRule: v })} options={RULES.map((r) => ({ ...r, badge: sens ? <Pill tone="mute">{year}: loại {n(sens[r.value]?.excluded)} dòng · giá BQ {price(sens[r.value]?.avgPrice)}</Pill> : null }))} />
+        <Card title="Quy tắc loại giá trị ngoại lai">
+          <RadioCards color="var(--phase-D)" value={S.outlierRule} onChange={(v) => upd({ outlierRule: v })} options={RULES.map((r) => ({ ...r, badge: sens ? <Pill tone="mute">{yLabel(year)}: loại {n(sens[r.value]?.excluded)} dòng · giá BQ {price(sens[r.value]?.avgPrice)}</Pill> : null }))} />
         </Card>
         <Card title="Luôn loại khỏi số liệu sau lọc">
           <ul className="small" style={{ paddingLeft: 18, lineHeight: 1.9 }}>
@@ -344,7 +354,8 @@ export function MetricsStep() {
       <RunBar id="metrics" label="Tính chỉ số phân khúc" note="Giá bình quân = Σ Trị giá / Σ Lượng (tấn)." />
       {R && Y && (
         <>
-          <Tabs value={year} onChange={setYear} color="var(--phase-D)" tabs={years.map((y) => ({ value: y, label: y }))} />
+          <PartialYearNote />
+          <Tabs value={year} onChange={setYear} color="var(--phase-D)" tabs={years.map((y) => ({ value: y, label: yLabel(y) }))} />
           <div className="kpis mb12">
             <Kpi label="Giá bình quân sau lọc" value={price(Y.total.after.avgPrice)} sub="USD/tấn — trong phạm vi sản phẩm" color="var(--phase-D)" />
             <Kpi label="Trung vị giá sau lọc" value={price(Y.total.after.median)} sub="USD/tấn" color="var(--phase-D)" />
@@ -353,10 +364,10 @@ export function MetricsStep() {
             <Kpi label="Dòng có giá: trước → sau" value={`${n(Y.total.before.count)} → ${n(Y.total.after.count)}`} color="var(--text-3)" />
           </div>
           <Card title={`Giá bình quân theo phân khúc — ${year}`} sub="Thanh xám: trước lọc · thanh màu: sau lọc (USD/tấn).">
-            <PriceCompare rows={Y.rows.filter((r) => r.segment !== "Ngoài phạm vi sản phẩm")} colors={colors} />
+            <PriceCompare rows={Y.rows.filter((r) => r.segment !== OUT_OF_SCOPE)} colors={colors} />
           </Card>
           <Card title="Bảng chỉ số chi tiết">
-            <Table maxHeight={480} rowClass={(r) => (r.__total ? "total" : r.segment === "Ngoài phạm vi sản phẩm" ? "dim" : "")} columns={[
+            <Table maxHeight={480} rowClass={(r) => (r.__total ? "total" : r.segment === OUT_OF_SCOPE ? "dim" : "")} columns={[
               { key: "segment", label: "Phân khúc", className: "nowrap", render: (r) => <b>{r.segment}</b> },
               { key: "bc", label: "Trước: dòng", num: true, render: (r) => n(r.before.count) }, { key: "bp", label: "Trước: giá BQ", num: true, render: (r) => price(r.before.avgPrice) },
               { key: "ac", label: "Sau: dòng", num: true, render: (r) => n(r.after.count) }, { key: "aq", label: "Sau: lượng (tấn)", num: true, render: (r) => n(r.after.qty, 0) },
@@ -370,9 +381,9 @@ export function MetricsStep() {
           <Card title="Tổng hợp nhiều năm (sau lọc)" sub="Lượng (tấn) · Giá bình quân (USD/tấn) theo phân khúc và năm.">
             <div className="tbl-wrap" style={{ maxHeight: 460 }}>
               <table className="tbl">
-                <thead><tr><th>Phân khúc</th>{years.map((y) => <th key={y} className="num">{y}</th>)}</tr></thead>
+                <thead><tr><th>Phân khúc</th>{years.map((y) => <th key={y} className="num">{yLabel(y)}</th>)}</tr></thead>
                 <tbody>
-                  {R.segments.filter((s) => s !== "Ngoài phạm vi sản phẩm").map((seg) => (
+                  {R.segments.filter((s) => s !== OUT_OF_SCOPE).map((seg) => (
                     <tr key={seg}>
                       <td className="nowrap"><i style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: colors[seg], marginRight: 8 }} /><b>{seg}</b></td>
                       {years.map((y) => { const v = R.pivot[seg][y]; return <td key={y} className="num">{v && v.count ? <><div><b>{price(v.avgPrice)}</b> <span className="muted small">USD/t</span></div><div className="muted small">{n(v.qty, 0)} tấn</div></> : <span className="muted">—</span>}</td>; })}
@@ -390,7 +401,7 @@ export function MetricsStep() {
 
 /* ═════════ BƯỚC 14 — XUẤT KẾT QUẢ ═════════ */
 export function ExportStep() {
-  const { state, run, download, setProfileOpen } = useApp();
+  const { state, run, download, setProfileOpen, yLabel } = useApp();
   const S = state?.settings || {};
   const years = state?.years?.map((y) => y.year) || [];
   const ready = state?.steps?.find((s) => s.id === "metrics")?.state === "done";
@@ -400,29 +411,29 @@ export function ExportStep() {
   return (
     <>
       <StepHero id="export" />
-      {!ready && <Callout kind="warn" title="Chưa chạy hết các bước.">Vẫn có thể xuất — các sheet/cột của bước chưa chạy sẽ để trống. Nên dùng “Chạy tự động các bước còn lại” ở thanh trên cùng.</Callout>}
-      <Card title="Thiết lập file xuất">
+      {!ready && <Callout kind="warn" title="Chưa chạy hết các bước.">Vẫn có thể xuất — các trang tính/cột của bước chưa chạy sẽ để trống. Nên dùng “Chạy tự động các bước còn lại” ở thanh trên cùng.</Callout>}
+      <Card title="Thiết lập tệp xuất">
         <div className="settings-grid">
           <Field label="Tên dự án (tiền tố tên file)"><input className="input" defaultValue={S.projectName} onBlur={(e) => e.target.value !== S.projectName && upd({ projectName: e.target.value || "ChemSeg" })} /></Field>
-          <Field label="Ngôn ngữ tiêu đề cột tính toán" hint="Tiếng Anh: giữ tên cột kiểu V17 (Purchaser_Standardize…) cho công thức/pivot cũ."><Seg value={S.headerLanguage} onChange={(v) => upd({ headerLanguage: v })} options={[{ value: "vi", label: "Tiếng Việt" }, { value: "en", label: "Tiếng Anh" }]} /></Field>
-          <Field label="Sheet “Sau lọc”"><Toggle checked={S.exportAfterSheet} onChange={(v) => upd({ exportAfterSheet: v })} color="var(--phase-E)" label="Xuất thêm sheet chỉ gồm dòng giữ lại" /></Field>
+          <Field label="Ngôn ngữ tiêu đề cột tính toán" hint="Tiếng Anh: giữ tên cột kiểu cũ (Purchaser_Standardize…) cho công thức/pivot cũ."><Seg value={S.headerLanguage} onChange={(v) => upd({ headerLanguage: v })} options={[{ value: "vi", label: "Tiếng Việt" }, { value: "en", label: "Tiếng Anh" }]} /></Field>
+          <Field label="Sheet “Sau lọc”"><Toggle checked={S.exportAfterSheet} onChange={(v) => upd({ exportAfterSheet: v })} color="var(--phase-E)" label="Xuất thêm trang tính chỉ gồm dòng giữ lại" /></Field>
           <Field label="Cột gốc"><Toggle checked={S.exportAllOriginalColumns} onChange={(v) => upd({ exportAllOriginalColumns: v })} color="var(--phase-E)" label="Giữ mọi cột gốc (kể cả cột chưa ánh xạ như SITC)" /></Field>
         </div>
       </Card>
       <div className="grid-2">
-        <Card title="Báo cáo kiểm toán" icon={<FileText size={20} color="var(--phase-E)" />} sub="19 sheet: tổng quan, nhật ký từng bước, từ điển DN, Top DN, chỉ số, từ điển cột, cấu hình.">
+        <Card title="Báo cáo kiểm toán" icon={<FileText size={20} color="var(--phase-E)" />} sub="19 trang tính: tổng quan, nhật ký từng bước, từ điển doanh nghiệp, nhóm doanh nghiệp Top, chỉ số, từ điển cột, cấu hình.">
           <Btn kind="primary" size="lg" color="var(--phase-E)" icon={FileSpreadsheet} disabled={!anyDone} onClick={() => download("Tạo báo cáo kiểm toán", "exportAudit")}>Tải báo cáo kiểm toán</Btn>
         </Card>
-        <Card title="Dữ liệu chi tiết từng năm" icon={<Layers size={20} color="var(--phase-E)" />} sub="Mọi cột gốc + toàn bộ cột tính toán; mỗi năm một file (tránh tràn bộ nhớ).">
-          <div className="row">{years.map((y) => <Btn key={y} kind="ghost" icon={Download} disabled={!anyDone} onClick={() => download(`Tạo dữ liệu chi tiết ${y}`, "exportDetail", { year: y })}>{y}</Btn>)}</div>
+        <Card title="Dữ liệu chi tiết từng năm" icon={<Layers size={20} color="var(--phase-E)" />} sub="Mọi cột gốc + toàn bộ cột tính toán; mỗi năm một tệp (tránh tràn bộ nhớ).">
+          <div className="row">{years.map((y) => <Btn key={y} kind="ghost" icon={Download} disabled={!anyDone} onClick={() => download(`Tạo dữ liệu chi tiết ${y}`, "exportDetail", { year: y })}>{yLabel(y)}</Btn>)}</div>
         </Card>
       </div>
       <Card title="Gói đầy đủ" sub="Tải lần lượt báo cáo kiểm toán và dữ liệu chi tiết của mọi năm.">
         <div className="row">
           <Btn kind="grad" size="lg" icon={PackageOpen} disabled={!anyDone} onClick={all}>Tải tất cả ({years.length + 1} file)</Btn>
           <Btn kind="ghost" icon={Save} onClick={() => setProfileOpen(true)}>Lưu / chia sẻ hồ sơ sản phẩm</Btn>
-          <Btn kind="ghost" icon={Download} disabled={!state?.results?.entity} onClick={() => download("Tạo file rà soát", "exportEntityReview")}>File rà soát tên DN</Btn>
-          <Btn kind="ghost" icon={Download} disabled={!state?.results?.ranking} onClick={() => download("Tạo danh sách", "exportResearchMaster")}>Danh sách DN cần nghiên cứu ngành</Btn>
+          <Btn kind="ghost" icon={Download} disabled={!state?.results?.entity} onClick={() => download("Tạo tệp rà soát", "exportEntityReview")}>Tệp rà soát tên doanh nghiệp</Btn>
+          <Btn kind="ghost" icon={Download} disabled={!state?.results?.ranking} onClick={() => download("Tạo danh sách", "exportResearchMaster")}>Danh sách doanh nghiệp cần nghiên cứu ngành</Btn>
         </div>
       </Card>
     </>

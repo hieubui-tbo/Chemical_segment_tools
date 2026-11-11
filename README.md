@@ -1,4 +1,4 @@
-# ChemSeg Analyst V18.1
+# ChemSeg Analyst · The Blue Ocean
 
 Công cụ xử lý dữ liệu xuất nhập khẩu hóa chất & phân bón — The Blue Ocean.
 
@@ -6,7 +6,9 @@ Biến cơ sở dữ liệu giao dịch thô (nhiều năm, nhiều nguồn) th�
 chuẩn hóa doanh nghiệp, xếp hạng Top 80%, phân loại phân khúc, quy đổi về tấn, lọc giá bất thường,
 chỉ số giá theo phân khúc, báo cáo kiểm toán Excel. Dùng cho **mọi sản phẩm** nhờ **Hồ sơ sản phẩm**.
 
-- Dữ liệu chỉ xử lý trong trình duyệt của người dùng — không gửi lên máy chủ.
+- Công cụ **không kèm dữ liệu hay bộ từ khóa của dự án nào** — mỗi người tự tải dữ liệu và tạo hồ sơ của mình.
+- Dữ liệu chỉ xử lý trong trình duyệt của người dùng — không gửi lên máy chủ (có Content-Security-Policy chặn mọi kết nối ra ngoài).
+- Không giới hạn số năm; một sheet nhiều năm được tách theo cột Ngày; năm chưa đủ 12 tháng được gắn nhãn (vd “2026 (T1–T10)”).
 - Hướng dẫn đầy đủ (Word) tải ngay trong công cụ: thanh bên trái → **Hướng dẫn (Word)**
   (file nguồn: `public/Huong_dan_su_dung_ChemSeg.docx`).
 
@@ -17,9 +19,9 @@ cách xác định phân khúc, quy tắc ngoại lai, (tùy chọn) từ điể
 
 | Nơi lưu | Ai thấy | Cập nhật |
 |---|---|---|
-| `profiles/*.json` (thư viện chung) | Cả nhóm | Thêm/ghi đè file trên GitHub → Vercel tự build lại |
 | Trình duyệt (“Trên máy này”) | Người dùng đó | Bấm Lưu trong công cụ |
 | File `HoSo_<tên>.json` | Người nhận file | Xuất / Nhập file hồ sơ |
+| `profiles/*.json` (thư viện chung, mặc định để trống) | Cả nhóm | Thêm file trên GitHub → Vercel tự build lại |
 
 Xem `profiles/README.md`. Hồ sơ lỗi ⇒ `npm run build` dừng ⇒ Vercel giữ nguyên bản đang chạy.
 
@@ -37,11 +39,10 @@ Dự án đã có `vercel.json` (Framework Vite · Build `npm run build` · Outp
 ```bash
 npm install
 npm run dev              # http://localhost:5173
-npm test                 # 101 kiểm thử tự động
+npm test                 # 108 kiểm thử tự động
 npm run build            # kiểm tra profiles/ rồi đóng gói vào dist/
 npm run check-profiles   # chỉ kiểm tra thư viện hồ sơ
 npm run pipeline -- <file_du_lieu.xlsx> <file_bo_tu_khoa.xlsx>   # chạy toàn quy trình bằng dòng lệnh
-npm run samples          # tạo lại dữ liệu mẫu trong public/mau/
 ```
 
 ## Quy trình 14 bước
@@ -58,7 +59,7 @@ npm run samples          # tạo lại dữ liệu mẫu trong public/mau/
 
 ```
 profiles/            Thư viện hồ sơ sản phẩm dùng chung (tự nạp khi build)
-public/              Hướng dẫn Word + dữ liệu mẫu (tải trực tiếp từ công cụ)
+public/              Hướng dẫn Word (tải trực tiếp từ công cụ)
 src/engine/          Logic xử lý (JavaScript thuần, không phụ thuộc giao diện)
   engine.js          Điều phối 14 bước, trạng thái, tự làm mới các bước sau khi chạy lại
   profile.js         Kiểm tra / chuẩn hóa hồ sơ  ·  profileApply.js: áp dụng & đóng gói hồ sơ
@@ -68,8 +69,8 @@ src/engine/          Logic xử lý (JavaScript thuần, không phụ thuộc gi
   io/                Đọc file (tự dò năm, dòng tiêu đề) · xuất Excel & hồ sơ
 src/worker/          Web Worker — xử lý ở luồng riêng, giao diện không bị treo
 src/ui/, src/steps/  Giao diện React (tiếng Việt) · ProfileManager.jsx: quản lý hồ sơ
-tests/               Kiểm thử đơn vị + toàn trình trên bộ dữ liệu có cài bẫy
-scripts/             Kiểm tra hồ sơ trước build, chạy dòng lệnh, sinh dữ liệu mẫu
+tests/               Kiểm thử đơn vị + toàn trình trên dữ liệu GIẢ LẬP có cài bẫy (tên DN, sản phẩm hư cấu)
+scripts/             Kiểm tra hồ sơ trước build, chạy toàn quy trình bằng dòng lệnh
 ```
 
 ## Ghi chú kỹ thuật

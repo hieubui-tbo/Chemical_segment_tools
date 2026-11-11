@@ -1,26 +1,14 @@
-# Thư viện hồ sơ sản phẩm (dùng chung cho cả nhóm)
+# Thư viện hồ sơ sản phẩm dùng chung (tùy chọn — mặc định để trống)
 
-Mỗi file `.json` trong thư mục này là **một hồ sơ sản phẩm**: bộ phân khúc & từ khóa, danh sách loại trừ,
-thiết lập logic (hệ số đơn vị, khoảng giá hợp lý, cách xác định phân khúc, quy tắc ngoại lai…), và có thể
-kèm từ điển DN / Industry Master đã nghiên cứu.
+Công cụ không kèm sẵn hồ sơ của dự án nào. Mỗi người tự tạo hồ sơ trong công cụ
+(**Hồ sơ sản phẩm → Tạo hồ sơ trống**), lưu trên trình duyệt và **Xuất file hồ sơ** (.json) để giữ lâu dài
+hoặc gửi đồng nghiệp (**Nhập file hồ sơ**).
 
-Mọi file ở đây tự xuất hiện trong mục **Hồ sơ sản phẩm → Thư viện chung** của công cụ sau mỗi lần deploy.
+Chỉ khi nhóm muốn một hồ sơ hiện sẵn cho mọi người, người quản trị mã nguồn mới đặt file `.json` vào thư mục này:
 
-## Thêm hoặc cập nhật một hồ sơ (không cần biết lập trình)
+1. Trên GitHub, mở thư mục `profiles/` → **Add file → Upload files** → kéo file `HoSo_<tên>.json` vào → **Commit changes**.
+2. Vercel tự build lại (~1 phút); hồ sơ hiện ở mục **Thư viện chung** của công cụ.
+3. File lỗi ⇒ build dừng, **bản đang chạy giữ nguyên**; xem lỗi trong mục Deployments của Vercel.
 
-1. Trong công cụ: chọn/tạo hồ sơ, chỉnh phân khúc ở bước 10 và các thiết lập cần thiết.
-2. Mở **Hồ sơ sản phẩm** → **Xuất file hồ sơ** → được file `HoSo_<tên>.json`.
-3. Trên GitHub, mở thư mục `profiles/` → **Add file → Upload files** → kéo file vào → **Commit changes**.
-   - Cập nhật hồ sơ có sẵn: tải lên file **cùng tên** để ghi đè (hoặc sửa trực tiếp trên GitHub).
-4. Vercel tự build lại (khoảng 1 phút). Cả nhóm tải lại trang là thấy hồ sơ mới.
-
-Nếu file hồ sơ bị lỗi, bước build sẽ dừng và **bản đang chạy giữ nguyên** (không ảnh hưởng người dùng);
-xem lỗi trong mục Deployments của Vercel, sửa file rồi tải lên lại.
-
-## Lưu ý
-
-- `id` phải khác nhau giữa các hồ sơ (công cụ tự tạo từ tên).
-- Hồ sơ trong thư viện là **công khai với những ai mở được công cụ** (và với ai xem được kho GitHub).
-  Không đưa dữ liệu nhạy cảm của khách hàng vào đây; nếu có, hãy để kho GitHub ở chế độ **Private**
-  và bật bảo vệ truy cập trên Vercel.
-- Dữ liệu giao dịch tải vào công cụ **không** được lưu ở đây hay gửi lên máy chủ — chỉ xử lý trong trình duyệt.
+Lưu ý: mọi file ở đây hiển thị cho người mở được công cụ (và người xem được kho GitHub). **Không đưa dữ liệu,
+tên khách hàng hay bộ từ khóa nhạy cảm của dự án vào đây.**

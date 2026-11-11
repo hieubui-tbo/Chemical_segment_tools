@@ -1,10 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
    BƯỚC 3–5: KIỂM TRA CHẤT LƯỢNG · BỔ SUNG SỐ LIỆU · ĐỐI CHIẾU GIÁ TRỊ
    ═══════════════════════════════════════════════════════════════ */
-import { parseNumberDetailed, parseDate, positiveOrNull } from "../numbers.js";
+import { parseNumberDetailed, parseDate, detectDateOrder, positiveOrNull } from "../numbers.js";
 import { normText } from "../text.js";
 import { lookupUnit } from "../dict/units.js";
-import { resolveCountry } from "../dict/countries.js";
+import { resolveCountry, COUNTRY_STATUS } from "../dict/countries.js";
 import { compilePlaceholders, placeholderReason } from "../names.js";
 import { SCHEMA_FIELDS } from "../constants.js";
 
@@ -26,7 +26,10 @@ export function runQuality(engine, progress) {
     TEXT_FIELDS.forEach((f) => (text[f] = { filled: 0, blank: 0, placeholder: 0 }));
     const dup = new Array(y.n).fill("");
     const dateCol = y.map.date >= 0 ? new Array(y.n).fill(null) : null;
+    const dateOrder = dateCol ? detectDateOrder(y.rows.map((r) => r[y.map.date])) : "dmy";
     let dupCount = 0, coreOK = 0, dateOK = 0, dateBad = 0, dateYearMismatch = 0;
+    let dMin = Infinity, dMax = -Infinity;
+    const months = new Set();
     const seen = new Map();
     const uniqSupp = new Set(), uniqPurch = new Set();
 
@@ -64,7 +67,7 @@ export function runQuality(engine, progress) {
       for (const f of ["countryOrigin", "purchCountry"]) {
         const raw = val(y, f, i);
         const c = resolveCountry(raw);
-        if (c.status === "Không nhận diện") {
+        if (c.status === COUNTRY_STATUS.UNKNOWN) {
           const k = String(raw).trim();
           const e = countryUnmapped.get(k) || { value: k, field: FIELD_LABEL[f], count: 0 };
           e.count++; countryUnmapped.set(k, e);
@@ -83,18 +86,24 @@ export function runQuality(engine, progress) {
 
       if (dateCol) {
         const raw = val(y, "date", i);
-        const d = parseDate(raw);
-        if (d) { dateCol[i] = d; dateOK++; if (String(d.getUTCFullYear()) !== y.year) dateYearMismatch++; }
+        const d = parseDate(raw, dateOrder);
+        if (d) {
+          dateCol[i] = d; dateOK++;
+          if (String(d.getUTCFullYear()) !== y.year) dateYearMismatch++;
+          else { const t = d.getTime(); if (t < dMin) dMin = t; if (t > dMax) dMax = t; months.add(d.getUTCMonth() + 1); }
+        }
         else if (raw !== null && raw !== "") dateBad++;
       }
       if ((i & 8191) === 0) progress((yi + i / y.n) / engine.years.length, `Năm ${y.year}: ${i.toLocaleString("vi-VN")}/${y.n.toLocaleString("vi-VN")} dòng`);
     }
     y.cols.Duplicate_Flag = dup;
     if (dateCol) y.cols.Date_Clean = dateCol;
+    y.coverage = coverageOf(y.year, dMin, dMax, months);
     out.years[y.year] = {
       rows: y.n, num, text, duplicates: dupCount, coreComplete: coreOK, coreCompletePct: y.n ? coreOK / y.n : 0,
       uniqueSuppliersRaw: uniqSupp.size, uniquePurchasersRaw: uniqPurch.size,
-      date: dateCol ? { parsed: dateOK, unparsed: dateBad, yearMismatch: dateYearMismatch } : null,
+      date: dateCol ? { parsed: dateOK, unparsed: dateBad, yearMismatch: dateYearMismatch, order: dateOrder } : null,
+      coverage: y.coverage,
     };
   });
   out.units = [...unitAll.values()].sort((a, b) => b.count - a.count).map((u) => ({ ...u, examples: [...u.examples].join(", ") }));
@@ -103,10 +112,37 @@ export function runQuality(engine, progress) {
   return out;
 }
 
+/** Quét cột Ngày của một năm để biết kỳ dữ liệu (dùng ngay khi xác nhận ánh xạ cột). */
+export function scanCoverage(y) {
+  if (!(y.map?.date >= 0)) return null;
+  const col = y.map.date;
+  const order = detectDateOrder(y.rows.map((r) => r[col]));
+  let dMin = Infinity, dMax = -Infinity;
+  const months = new Set();
+  for (let i = 0; i < y.n; i++) {
+    const d = parseDate(y.rows[i][col], order);
+    if (!d || String(d.getUTCFullYear()) !== y.year) continue;
+    const t = d.getTime(); if (t < dMin) dMin = t; if (t > dMax) dMax = t; months.add(d.getUTCMonth() + 1);
+  }
+  return coverageOf(y.year, dMin, dMax, months);
+}
+
+/** Kỳ dữ liệu của một năm (từ cột Ngày): tháng đầu–cuối, năm chưa trọn 12 tháng. */
+export function coverageOf(year, dMin, dMax, months) {
+  if (!Number.isFinite(dMin) || !months.size) return null;
+  const from = new Date(dMin), to = new Date(dMax);
+  const m1 = from.getUTCMonth() + 1, m2 = to.getUTCMonth() + 1;
+  const partial = m1 > 1 || m2 < 12;
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { from: iso(from), to: iso(to), firstMonth: m1, lastMonth: m2, monthsWithData: months.size, partial, label: partial ? `T${m1}–T${m2}/${year}` : "" };
+}
+
 /* ═════════ BƯỚC 4 — BỔ SUNG SỐ LIỆU THIẾU ═════════
    Nếu thiếu ĐÚNG MỘT trong ba trường (Đơn giá, Trị giá, Lượng) và hai trường còn lại hợp lệ (> 0):
      Đơn giá = Trị giá / Lượng · Trị giá = Đơn giá × Lượng · Lượng = Trị giá / Đơn giá
    Giá trị ≤ 0, chữ, ô trống đều coi là "thiếu". Dữ liệu gốc giữ nguyên; kết quả ở cột *_Clean. */
+export const BF_FIELD = { unitPrice: "Đơn giá", totalValue: "Trị giá", quantity: "Lượng" };
+
 export function runBackfill(engine, progress) {
   const out = { years: {}, samples: [] };
   engine.years.forEach((y, yi) => {
@@ -121,14 +157,14 @@ export function runBackfill(engine, progress) {
       const missing = (up === null) + (tv === null) + (q === null);
       if (missing === 0) cnt.complete++;
       else if (missing === 1) {
-        if (up === null) { u = tv / q; BF[i] = "Đơn giá"; cnt.unitPrice++; }
-        else if (tv === null) { t = up * q; BF[i] = "Trị giá"; cnt.totalValue++; }
-        else { qq = tv / up; BF[i] = "Lượng"; cnt.quantity++; }
+        if (up === null) { u = tv / q; BF[i] = BF_FIELD.unitPrice; cnt.unitPrice++; }
+        else if (tv === null) { t = up * q; BF[i] = BF_FIELD.totalValue; cnt.totalValue++; }
+        else { qq = tv / up; BF[i] = BF_FIELD.quantity; cnt.quantity++; }
         if (out.samples.length < 60) {
           out.samples.push({
             year: y.year, row: y.rowNum[i], field: BF[i],
             unitPrice: val(y, "unitPrice", i), totalValue: val(y, "totalValue", i), quantity: val(y, "quantity", i),
-            newValue: BF[i] === "Đơn giá" ? u : BF[i] === "Trị giá" ? t : qq,
+            newValue: BF[i] === BF_FIELD.unitPrice ? u : BF[i] === BF_FIELD.totalValue ? t : qq,
           });
         }
       } else cnt.notPossible++;

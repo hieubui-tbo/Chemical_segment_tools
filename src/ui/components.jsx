@@ -3,7 +3,7 @@ import {
   Info, AlertTriangle, CheckCircle2, XCircle, UploadCloud, Target, ListChecks, PackageCheck, HelpCircle,
   Play, ArrowRight, RotateCcw, ChevronLeft, ChevronRight, Lock, Inbox, Loader2, SkipForward,
 } from "lucide-react";
-import { PHASES, STEPS, STEP_INDEX } from "../engine/constants.js";
+import { PHASES, STEPS, STEP_INDEX, LABELS } from "../engine/constants.js";
 import { useApp } from "./store.jsx";
 import { GUIDES } from "./guides.jsx";
 import { ms } from "./format.js";
@@ -182,11 +182,11 @@ export function Bar({ value, max, color }) {
 }
 
 export function ConfPill({ v }) {
-  const t = v === "Chính xác" ? "ok" : v === "Cao" ? "info" : v === "Trung bình" ? "warn" : v === "Thấp" ? "bad" : "mute";
+  const t = v === LABELS.CONF.EXACT ? "ok" : v === LABELS.CONF.HIGH ? "info" : v === LABELS.CONF.MEDIUM ? "warn" : v === LABELS.CONF.LOW ? "bad" : "mute";
   return <Pill tone={t}>{v}</Pill>;
 }
 export function ReviewPill({ v }) {
-  const t = v === "Tự động chấp nhận" ? "ok" : v === "Cần rà soát" ? "warn" : v?.startsWith("Đã xác nhận") ? "violet" : "mute";
+  const t = v === LABELS.REVIEW.AUTO ? "ok" : v === LABELS.REVIEW.REVIEW ? "warn" : v === LABELS.REVIEW.CONFIRMED ? "violet" : "mute";
   return <Pill tone={t}>{v}</Pill>;
 }
 

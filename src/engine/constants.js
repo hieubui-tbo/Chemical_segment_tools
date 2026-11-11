@@ -2,7 +2,6 @@
    HẰNG SỐ & CẤU HÌNH MẶC ĐỊNH CỦA QUY TRÌNH
    ═══════════════════════════════════════════════════════════════ */
 
-export const APP_VERSION = "V18.1";
 /** Hướng dẫn sử dụng đầy đủ (file Word trong public/, tải trực tiếp từ công cụ). */
 export const GUIDE_URL = "/Huong_dan_su_dung_ChemSeg.docx";
 
@@ -26,12 +25,12 @@ export const STEPS = [
   { id: "backfill", no: 4,  phase: "B", label: "Bổ sung số liệu thiếu",     short: "Bổ sung số liệu" },
   { id: "validate", no: 5,  phase: "B", label: "Đối chiếu giá trị",         short: "Đối chiếu giá trị" },
   { id: "units",    no: 6,  phase: "B", label: "Quy đổi đơn vị về tấn",     short: "Quy đổi đơn vị" },
-  { id: "entity",   no: 7,  phase: "C", label: "Chuẩn hóa doanh nghiệp",    short: "Chuẩn hóa DN" },
-  { id: "ranking",  no: 8,  phase: "C", label: "Xếp hạng Top doanh nghiệp", short: "Xếp hạng Top" },
+  { id: "entity",   no: 7,  phase: "C", label: "Chuẩn hóa doanh nghiệp",    short: "Chuẩn hóa doanh nghiệp" },
+  { id: "ranking",  no: 8,  phase: "C", label: "Xếp hạng nhóm doanh nghiệp Top", short: "Xếp hạng Top" },
   { id: "industry", no: 9,  phase: "C", label: "Gán ngành (Industry Master)", short: "Gán ngành", optional: true },
   { id: "keywords", no: 10, phase: "D", label: "Bộ từ khóa phân khúc",      short: "Bộ từ khóa", optional: true },
   { id: "classify", no: 11, phase: "D", label: "Phân loại phân khúc",       short: "Phân loại" },
-  { id: "iqr",      no: 12, phase: "D", label: "Lọc ngoại lai IQR",          short: "Ngoại lai IQR" },
+  { id: "iqr",      no: 12, phase: "D", label: "Lọc giá trị ngoại lai IQR",          short: "Ngoại lai IQR" },
   { id: "metrics",  no: 13, phase: "D", label: "Chỉ số phân khúc",          short: "Chỉ số phân khúc" },
   { id: "export",   no: 14, phase: "E", label: "Xuất kết quả",              short: "Xuất kết quả" },
 ];
@@ -125,10 +124,10 @@ export const NON_PROFILE_SETTINGS = new Set(["headerLanguage", "exportAfterSheet
 
 /** Cách xác định phân khúc cuối cùng (bước 11) — theo ý đồ phân khúc của người nghiên cứu. */
 export const SEGMENT_BASIS = {
-  keyword_first: { label: "Từ khóa trước, ngành DN dự phòng", order: "Loại trừ → Từ khóa → Ngành của DN → Chưa phân loại" },
-  industry_first: { label: "Ngành DN trước, từ khóa dự phòng", order: "Loại trừ → Ngành của DN → Từ khóa → Chưa phân loại" },
+  keyword_first: { label: "Từ khóa trước, ngành doanh nghiệp dự phòng", order: "Loại trừ → Từ khóa → Ngành của doanh nghiệp → Chưa phân loại" },
+  industry_first: { label: "Ngành doanh nghiệp trước, từ khóa dự phòng", order: "Loại trừ → Ngành của doanh nghiệp → Từ khóa → Chưa phân loại" },
   keyword_only: { label: "Chỉ theo từ khóa (mô tả hàng hóa)", order: "Loại trừ → Từ khóa → Chưa phân loại" },
-  industry_only: { label: "Chỉ theo ngành của DN mua", order: "Loại trừ → Ngành của DN → Chưa phân loại" },
+  industry_only: { label: "Chỉ theo ngành của doanh nghiệp mua", order: "Loại trừ → Ngành của doanh nghiệp → Chưa phân loại" },
 };
 
 export const LABELS = {

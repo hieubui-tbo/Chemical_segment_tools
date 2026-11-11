@@ -21,7 +21,7 @@ const EXCLUDE_COLS = new Set(["LOAI TRU", "NGOAI PHAM VI", "EXCLUDE", "EXCLUDED"
 export function parseKeywordMatrix(buffer, fileName) {
   const tables = readReferenceTables(buffer, fileName);
   const t = tables.find((x) => x.rows.length) || tables[0];
-  if (!t) throw new Error("File không có dữ liệu.");
+  if (!t) throw new Error("Tệp không có dữ liệu.");
   const segments = [];
   const exclusions = [];
   const warnings = [];
@@ -79,10 +79,10 @@ export function runClassify(engine, progress) {
       const indSeg = useInd && indCanon ? indCanon : null;
       if (kwSeg && indSeg) { if (normText(indSeg) === normText(kwSeg)) SC[i] = "Khớp"; else { SC[i] = "Khác nhau (nên rà soát)"; c.mismatch++; } }
       if (r.seg === OUT_OF_SCOPE) { FS[i] = OUT_OF_SCOPE; SM[i] = "Từ khóa loại trừ"; c.outOfScope++; }
-      else if (indFirst && indSeg) { FS[i] = indSeg; SM[i] = basis === "industry_only" ? "Ngành của DN" : "Ngành của DN (ưu tiên)"; c.industry++; }
+      else if (indFirst && indSeg) { FS[i] = indSeg; SM[i] = basis === "industry_only" ? "Ngành của doanh nghiệp" : "Ngành của doanh nghiệp (ưu tiên)"; c.industry++; }
       else if (kwSeg) {
         FS[i] = kwSeg; SM[i] = indFirst ? "Từ khóa (dự phòng)" : "Từ khóa"; c.keyword++;
-        if (r.conf.startsWith("Hòa")) c.ties++;
+        if (r.tie) c.ties++;
       } else if (!indFirst && indSeg) { FS[i] = indSeg; SM[i] = "Ngành (dự phòng)"; c.industry++; }
       else {
         FS[i] = UNCLASSIFIED; SM[i] = "Chưa phân loại"; c.unclassified++;
@@ -181,7 +181,7 @@ export function previewKeywords(engine, def, opts = {}) {
       else if (r.seg) {
         tot.matchedRows++; tot.matchedValue += v;
         const sd = seg.get(r.seg); sd.rows++; sd.value += v;
-        if (r.conf.startsWith("Hòa")) tot.ties++;
+        if (r.tie) tot.ties++;
       } else {
         tot.unRows++; tot.unValue += v;
         const key = nd || "";

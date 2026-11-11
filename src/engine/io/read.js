@@ -8,8 +8,58 @@
 import * as XLSX from "xlsx";
 import { extractYear, normHeader } from "../text.js";
 import { SCHEMA_FIELDS } from "../constants.js";
+import { parseDate, detectDateOrder } from "../numbers.js";
 
 const ALIAS_SET = new Set(SCHEMA_FIELDS.flatMap((f) => f.aliases));
+const DATE_ALIASES = SCHEMA_FIELDS.find((f) => f.key === "date").aliases.map(normHeader);
+const YEAR_ALIASES = ["year", "nam", "fiscal year", "nam giao dich", "nam nhap khau", "nam xuat khau", "ano", "jahr"].map(normHeader);
+/** Giá trị đặc biệt của "năm" một nguồn: tách theo cột ngày/năm trong dữ liệu. */
+export const YEAR_BY_DATE = "__date";
+
+/** Giải mã CSV: UTF-8 (có/không BOM); nếu không hợp lệ thì thử Windows-1258 (CSV tiếng Việt xuất từ Excel). */
+function decodeCsv(buffer) {
+  const bytes = new Uint8Array(buffer);
+  try {
+    let t = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (t.charCodeAt(0) === 0xfeff) t = t.slice(1);
+    return t;
+  } catch {
+    try { return new TextDecoder("windows-1258").decode(bytes); } catch { return new TextDecoder("windows-1252").decode(bytes); }
+  }
+}
+
+/**
+ * Tìm cột ngày (hoặc cột năm) để biết sheet chứa những năm nào.
+ * Trả về { col, header, kind: "date"|"year", order, years: {năm: số dòng}, invalid, rowYears: Int16Array } hoặc null.
+ */
+export function detectYearColumn(headers, rows) {
+  const cands = [];
+  headers.forEach((h, j) => {
+    const nh = normHeader(h);
+    if (YEAR_ALIASES.includes(nh)) cands.push({ j, kind: "year", pri: 2 });
+    else if (DATE_ALIASES.includes(nh) || DATE_ALIASES.some((a) => a.length > 3 && (nh.startsWith(a + " ") || nh.endsWith(" " + a)))) cands.push({ j, kind: "date", pri: 1 });
+  });
+  let best = null;
+  for (const c of cands) {
+    const order = c.kind === "date" ? detectDateOrder(rows.map((r) => r[c.j])) : "dmy";
+    const rowYears = new Int16Array(rows.length);
+    const years = {};
+    let filled = 0, ok = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const v = rows[i][c.j];
+      if (v === null || v === undefined || v === "") continue;
+      filled++;
+      let yr = 0;
+      if (c.kind === "year") { const n = typeof v === "number" ? v : parseInt(String(v).trim(), 10); if (Number.isInteger(n) && n >= 1990 && n <= 2100) yr = n; }
+      else { const d = parseDate(v, order); if (d) { const y = d.getUTCFullYear(); if (y >= 1990 && y <= 2100) yr = y; } }
+      if (yr) { rowYears[i] = yr; years[yr] = (years[yr] || 0) + 1; ok++; }
+    }
+    if (!filled || ok / filled < 0.8) continue;
+    const r = { col: c.j, header: headers[c.j], kind: c.kind, order, years, invalid: rows.length - ok, rowYears, ok, pri: c.pri };
+    if (!best || r.ok > best.ok || (r.ok === best.ok && r.pri > best.pri)) best = r;
+  }
+  return best;
+}
 
 function isEmptyCell(v) {
   return v === null || v === undefined || (typeof v === "string" && v.trim() === "");
@@ -122,9 +172,8 @@ export function readFileSources(buffer, fileName) {
   const isCsv = /\.(csv|txt)$/i.test(fileName);
   let wb;
   if (isCsv) {
-    let text = new TextDecoder("utf-8").decode(new Uint8Array(buffer));
-    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-    wb = XLSX.read(text, { type: "string", cellDates: true, raw: false });
+    // raw: giữ nguyên chuỗi (không để thư viện tự đoán ngày kiểu Mỹ) — công cụ tự đọc số & ngày sau
+    wb = XLSX.read(decodeCsv(buffer), { type: "string", raw: true });
   } else {
     wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true, cellNF: false, cellText: false });
   }
@@ -137,16 +186,28 @@ export function readFileSources(buffer, fileName) {
   }
   return parsed.map((p) => {
     const sy = extractYear(p.sheet);
+    const split = p.rows.length ? detectYearColumn(p.headers, p.rows) : null;
+    const yrs = split ? Object.entries(split.years).sort((a, b) => a[0] - b[0]) : [];
+    // "nhiều năm" = có ≥ 2 năm, mỗi năm chiếm ≥ 1% số dòng đọc được ngày
+    const multi = yrs.filter(([, n]) => n >= Math.max(1, split.ok * 0.01)).length >= 2;
+    const domYear = yrs.length ? yrs.reduce((a, b) => (b[1] > a[1] ? b : a))[0] : null;
+    const range = yrs.length ? `${yrs[0][0]}–${yrs[yrs.length - 1][0]}` : "";
     let year = null, note = "";
-    if (sy) { year = sy; note = "Năm lấy từ tên sheet"; }
-    else if (biggest === p && fileYear) { year = fileYear; note = "Năm lấy từ tên file"; }
+    // Tên sheet/file đã mang năm và ngày trong dữ liệu chủ yếu (≥ 90%) đúng năm đó ⇒ giữ theo tên (không tách)
+    const nameYear = sy || (biggest === p ? fileYear : null);
+    const nameShare = nameYear && split ? (split.years[nameYear] || 0) / split.ok : 0;
+    if (split && multi && !(nameYear && nameShare >= 0.9)) { year = YEAR_BY_DATE; note = `Sheet chứa nhiều năm (${range}) — tách theo cột “${split.header}”`; }
+    else if (sy) { year = sy; note = "Năm lấy từ tên trang tính" + (split && domYear && String(domYear) !== sy ? ` — lưu ý: cột “${split.header}” chủ yếu là năm ${domYear}` : ""); }
+    else if (biggest === p && fileYear) { year = fileYear; note = "Năm lấy từ tên file" + (split && domYear && String(domYear) !== fileYear ? ` — lưu ý: cột “${split.header}” chủ yếu là năm ${domYear}` : ""); }
+    else if (split && domYear && p.rows.length) { year = String(domYear); note = `Năm lấy từ cột “${split.header}”`; }
     else if (!p.rows.length) note = "Sheet trống";
     else if (anySheetYear || fileYear) note = "Sheet không mang năm — bỏ qua (có thể gán năm thủ công)";
     else note = "Không tìm thấy năm — hãy nhập năm thủ công";
     return {
       file: fileName, sheet: p.sheet, year, include: !!year && p.rows.length > 0, note,
       headers: p.headers, headerRowNo: p.headerRowNo, nRows: p.rows.length,
-      _rows: p.rows, _rowNums: p.rowNums,
+      split: split ? { header: split.header, kind: split.kind, years: yrs.map(([y, n]) => ({ year: y, rows: n })), invalid: split.invalid } : null,
+      _rows: p.rows, _rowNums: p.rowNums, _rowYears: split ? split.rowYears : null,
     };
   });
 }
@@ -155,7 +216,7 @@ export function readFileSources(buffer, fileName) {
 export function readReferenceTables(buffer, fileName) {
   const isCsv = /\.(csv|txt)$/i.test(fileName);
   const wb = isCsv
-    ? XLSX.read(new TextDecoder("utf-8").decode(new Uint8Array(buffer)).replace(/^\uFEFF/, ""), { type: "string" })
+    ? XLSX.read(decodeCsv(buffer), { type: "string", raw: true })
     : XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
   return wb.SheetNames.map((sheet) => {
     const p = parseSheet(wb.Sheets[sheet], { reference: true });

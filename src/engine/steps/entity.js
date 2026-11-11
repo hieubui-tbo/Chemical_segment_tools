@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   BƯỚC 6 — CHUẨN HÓA DOANH NGHIỆP (ENTITY RESOLUTION)
+   BƯỚC 7 — CHUẨN HÓA DOANH NGHIỆP (ENTITY RESOLUTION)
    Chạy MỘT LẦN trên toàn bộ các năm ⇒ mã nhóm & tên chuẩn hóa thống nhất giữa các năm.
 
    Quy trình cho từng loại (DN mua / DN bán):
@@ -10,18 +10,18 @@
       Trùng khóa lõi ⇒ cùng DN (độ tin cậy Chính xác/Cao).
    5. Gộp mức Trung bình: trùng "phần tên riêng" (bỏ từ chung như TRADING, CHEMICAL…), có chặn
       tên riêng quá phổ biến (> 6 biến thể khác nhau ⇒ không gộp).
-   6. Gộp mức Thấp/Trung bình: gần đúng ký tự (Jaro-Winkler ≥ ngưỡng) — chỉ so trong cùng khối
-      (cùng quốc gia + cùng 3 ký tự đầu/cuối) để chạy nhanh trên dữ liệu lớn.
+   6. Gộp mức Thấp/Trung bình: gần đúng ký tự (Levenshtein ≤ 2, tỷ lệ giống ≥ ngưỡng, tên ≥ 10 ký tự) —
+      chỉ so trong cùng khối (cùng quốc gia + cùng 4 ký tự đầu/cuối) để chạy nhanh trên dữ liệu lớn.
    7. Mỗi nhóm: chọn tên hiển thị từ biến thể THẬT có giá trị lớn nhất, gắn cờ rủi ro, trạng thái rà soát.
    ═══════════════════════════════════════════════════════════════ */
 import { analyzeName, cleanDisplayName, compilePlaceholders, placeholderReason } from "../names.js";
-import { resolveCountry } from "../dict/countries.js";
+import { resolveCountry, COUNTRY_STATUS } from "../dict/countries.js";
 import { normText, normHeader, levenshtein } from "../text.js";
 import { readReferenceTables } from "../io/read.js";
 import { LABELS, CONF_RANK } from "../constants.js";
 
 const { CONF, REVIEW } = LABELS;
-const REVIEW_FLAGS = new Set(["Có thể nhiều DN trong một ô", "Tên quá ngắn/viết tắt", "Có thể là DN logistics/giao nhận", "Tên chỉ gồm hình thức pháp lý/từ chung"]);
+const REVIEW_FLAGS = new Set(["Có thể nhiều doanh nghiệp trong một ô", "Tên quá ngắn/viết tắt", "Có thể là doanh nghiệp logistics/giao nhận", "Tên chỉ gồm hình thức pháp lý/từ chung"]);
 const CONF_BY_RANK = Object.fromEntries(Object.entries(CONF_RANK).map(([k, v]) => [v, k]));
 const val = (y, f, i) => (y.map[f] >= 0 ? y.rows[i][y.map[f]] : null);
 
@@ -53,7 +53,7 @@ export function runEntity(engine, progress) {
 function resolveType(engine, t, ctx, progress) {
   const { type, prefix, nameField, countryField, byCountry } = t;
   const { ph, ovr, settings } = ctx;
-  const label = type === "Purchaser" ? "DN mua" : "DN bán";
+  const label = type === "Purchaser" ? "DN mua" : "Doanh nghiệp bán";
 
   /* 1) Gom cặp (tên chuẩn hóa ký tự, quốc gia) */
   const pairIndex = new Map();
@@ -68,10 +68,10 @@ function resolveType(engine, t, ctx, progress) {
       const rawStr = raw === null || raw === undefined ? "" : String(raw).replace(/\s+/g, " ").trim();
       const cRaw = val(y, countryField, i);
       const c = resolveCountry(cRaw);
-      cName[i] = c.name || (c.status === "Trống" ? "" : String(cRaw).trim());
+      cName[i] = c.name || (c.status === COUNTRY_STATUS.BLANK ? "" : String(cRaw).trim());
       cCont[i] = c.continentLabel; cSea[i] = c.isSEA ? LABELS.YES : LABELS.NO;
-      if (c.status === "Không nhận diện") countryRows.unmapped++; else if (c.status === "Trống") countryRows.blank++;
-      const cKey = c.code || (c.status === "Trống" ? "" : "RAW:" + normText(cRaw));
+      if (c.status === COUNTRY_STATUS.UNKNOWN) countryRows.unmapped++; else if (c.status === COUNTRY_STATUS.BLANK) countryRows.blank++;
+      const cKey = c.code || (c.status === COUNTRY_STATUS.BLANK ? "" : "RAW:" + normText(cRaw));
       const norm = normText(rawStr);
       const key = norm + "|" + (byCountry ? cKey : "");
       let pi = pairIndex.get(key);
@@ -396,8 +396,7 @@ function buildOverrideIndex(entries) {
 
 function lookupOverride(idx, norm, cKey, type) {
   if (!idx.size) return null;
-  const c = cKey && !cKey.startsWith("RAW:") ? cKey : cKey;
-  return idx.get(`${norm}|${c}|${type}`) || idx.get(`${norm}||${type}`) || idx.get(`${norm}|${c}|`) || idx.get(`${norm}||`) || null;
+  return idx.get(`${norm}|${cKey}|${type}`) || idx.get(`${norm}||${type}`) || idx.get(`${norm}|${cKey}|`) || idx.get(`${norm}||`) || null;
 }
 
 /* ═════════ GIAO DỊCH TRÙNG GIỮA CÁC NGUỒN DỮ LIỆU ═════════

@@ -6,11 +6,13 @@
    3. Mỗi bước chỉ chạy khi các bước trước đã hoàn thành / được bỏ qua.
    4. Mọi tham số logic nằm trong settings và được ghi vào báo cáo để tái lập kết quả.
    ═══════════════════════════════════════════════════════════════ */
-import { STEPS, STEP_INDEX, DEFAULT_SETTINGS, SETTING_STEP, SCHEMA_FIELDS, REQUIRED_FIELDS, APP_VERSION, NON_PROFILE_SETTINGS } from "./constants.js";
+import { STEPS, STEP_INDEX, DEFAULT_SETTINGS, SETTING_STEP, SCHEMA_FIELDS, REQUIRED_FIELDS, NON_PROFILE_SETTINGS } from "./constants.js";
 import { COLUMNS_BY_STEP } from "./columns.js";
-import { readFileSources } from "./io/read.js";
+import { readFileSources, YEAR_BY_DATE } from "./io/read.js";
 import { normHeader } from "./text.js";
 import * as prep from "./steps/prep.js";
+import { scanCoverage } from "./steps/prep.js";
+import { yearLabel, periodLabel } from "./period.js";
 import * as entity from "./steps/entity.js";
 import * as ranking from "./steps/ranking.js";
 import * as industry from "./steps/industry.js";
@@ -130,7 +132,7 @@ export class Engine {
   sourceSummary() {
     return this.sources.map((s) => ({
       id: s.id, file: s.file, sheet: s.sheet, year: s.year, include: s.include, note: s.note,
-      nRows: s.nRows, headerRowNo: s.headerRowNo, nCols: s.headers.length, headers: s.headers.slice(0, 60),
+      nRows: s.nRows, headerRowNo: s.headerRowNo, nCols: s.headers.length, headers: s.headers.slice(0, 60), split: s.split || null,
     }));
   }
 
@@ -145,36 +147,54 @@ export class Engine {
     }
     const chosen = this.sources.filter((s) => s.include);
     if (!chosen.length) throw new EngineError("Chưa chọn nguồn dữ liệu nào để xử lý.");
-    const bad = chosen.filter((s) => !/^(19|20)\d{2}$/.test(String(s.year || "")));
+    const bad = chosen.filter((s) => (s.year === YEAR_BY_DATE ? !s._rowYears : !/^(19|20)\d{2}$/.test(String(s.year || ""))));
     if (bad.length) throw new EngineError("Các nguồn sau chưa có năm hợp lệ (4 chữ số): " + bad.map((b) => `${b.file} › ${b.sheet}`).join("; "));
 
-    // gộp theo năm, hợp nhất tiêu đề
+    // gộp theo năm, hợp nhất tiêu đề. Nguồn "tách theo cột ngày" đóng góp vào nhiều năm (mỗi dòng theo năm của nó).
     const byYear = new Map();
-    for (const s of chosen) { if (!byYear.has(s.year)) byYear.set(s.year, []); byYear.get(s.year).push(s); }
+    const add = (year, part) => { if (!byYear.has(year)) byYear.set(year, []); byYear.get(year).push(part); };
+    const dropped = [];
+    for (const s of chosen) {
+      if (s.year !== YEAR_BY_DATE) { add(s.year, { s, idx: null }); continue; }
+      const buckets = new Map();
+      let none = 0;
+      for (let i = 0; i < s._rows.length; i++) {
+        const yr = s._rowYears[i];
+        if (!yr) { none++; continue; }
+        if (!buckets.has(yr)) buckets.set(yr, []);
+        buckets.get(yr).push(i);
+      }
+      buckets.forEach((idx, yr) => add(String(yr), { s, idx: Int32Array.from(idx) }));
+      if (none) dropped.push({ file: s.file, sheet: s.sheet, rows: none, column: s.split?.header || "" });
+    }
+    if (!byYear.size) throw new EngineError("Không còn dòng nào có năm hợp lệ để xử lý.");
     this.years = [...byYear.keys()].sort().map((year) => {
       const parts = byYear.get(year);
       const headers = [];
       const hIndex = new Map();
-      for (const p of parts) for (const h of p.headers) if (!hIndex.has(h)) { hIndex.set(h, headers.length); headers.push(h); }
-      const n = parts.reduce((a, p) => a + p._rows.length, 0);
+      for (const p of parts) for (const h of p.s.headers) if (!hIndex.has(h)) { hIndex.set(h, headers.length); headers.push(h); }
+      const n = parts.reduce((a, p) => a + (p.idx ? p.idx.length : p.s._rows.length), 0);
       const rows = new Array(n);
       const srcIdx = new Uint16Array(n), rowNum = new Int32Array(n);
-      const srcNames = parts.map((p) => ({ file: p.file, sheet: p.sheet }));
+      const srcNames = parts.map((p) => ({ file: p.s.file, sheet: p.s.sheet }));
       let k = 0;
       parts.forEach((p, pi) => {
-        const map = p.headers.map((h) => hIndex.get(h));
-        const identity = map.every((m, j) => m === j) && p.headers.length === headers.length;
-        for (let i = 0; i < p._rows.length; i++) {
-          const r = p._rows[i];
+        const src = p.s;
+        const map = src.headers.map((h) => hIndex.get(h));
+        const identity = map.every((m, j) => m === j) && src.headers.length === headers.length;
+        const cnt = p.idx ? p.idx.length : src._rows.length;
+        for (let t = 0; t < cnt; t++) {
+          const i = p.idx ? p.idx[t] : t;
+          const r = src._rows[i];
           let out = r;
           if (!identity) { out = new Array(headers.length).fill(null); for (let j = 0; j < map.length; j++) out[map[j]] = r[j]; }
-          rows[k] = out; srcIdx[k] = pi; rowNum[k] = p._rowNums[i]; k++;
+          rows[k] = out; srcIdx[k] = pi; rowNum[k] = src._rowNums[i]; k++;
         }
       });
-      return { year, headers, rows, n, srcIdx, rowNum, srcNames, map: {}, cols: {} };
+      return { year, headers, rows, n, srcIdx, rowNum, srcNames, map: {}, cols: {}, coverage: null };
     });
     this.status = { upload: "done" };
-    this.results = { upload: { years: this.years.map((y) => ({ year: y.year, rows: y.n, parts: y.srcNames.length, cols: y.headers.length })) } };
+    this.results = { upload: { years: this.years.map((y) => ({ year: y.year, rows: y.n, parts: y.srcNames.length, cols: y.headers.length })), dropped } };
     this.entities = {}; this.rankings = null;
     this.autoSchema();
     return this.results.upload;
@@ -282,6 +302,7 @@ export class Engine {
     for (const y of this.years) {
       const m = this.schema.perYear[y.year];
       y.map = Object.fromEntries(SCHEMA_FIELDS.map((f) => [f.key, m[f.key] ? y.headers.indexOf(m[f.key]) : -1]));
+      y.coverage = scanCoverage(y);
     }
     this.status.schema = "done";
     this.results.schema = { mapping: structuredClone(this.schema.perYear) };
@@ -291,8 +312,8 @@ export class Engine {
   /* ─────────── các bước xử lý ─────────── */
   runStep(id) {
     if (id === "upload" || id === "schema") throw new EngineError("Bước này được xác nhận trực tiếp trên giao diện.");
-    if (id === "keywords") throw new EngineError("Hãy tải file bộ từ khóa hoặc chọn bỏ qua.");
-    if (id === "export") throw new EngineError("Bước xuất file không cần chạy.");
+    if (id === "keywords") throw new EngineError("Hãy tải tệp bộ từ khóa hoặc chọn bỏ qua.");
+    if (id === "export") throw new EngineError("Bước xuất tệp không cần chạy.");
     const can = this.canRun(id);
     if (!can.ok) throw new EngineError(`Cần hoàn thành bước ${can.blocker.no} "${can.blocker.label}" trước.`);
     const runner = STEP_RUNNERS[id];
@@ -336,7 +357,7 @@ export class Engine {
         return { ran, stoppedAt: s.id, reason: "Chưa tải Industry Master." };
       }
       if (s.id === "keywords") {
-        return { ran, stoppedAt: s.id, reason: "Cần tải file bộ từ khóa (hoặc chọn Bỏ qua) trước khi phân loại." };
+        return { ran, stoppedAt: s.id, reason: "Cần tải tệp bộ từ khóa (hoặc chọn Bỏ qua) trước khi phân loại." };
       }
       this.runStep(s.id);
       ran.push({ id: s.id });
@@ -348,7 +369,7 @@ export class Engine {
   updateSettings(partial) {
     let earliest = null;
     for (const [k, v] of Object.entries(partial)) {
-      if (!(k in DEFAULT_SETTINGS)) continue;
+      if (!Object.hasOwn(DEFAULT_SETTINGS, k)) continue; // chặn khóa lạ như "__proto__"
       const same = JSON.stringify(this.settings[k]) === JSON.stringify(v);
       if (same) continue;
       this.settings[k] = v;
@@ -423,12 +444,12 @@ export class Engine {
 
   getState() {
     return {
-      version: APP_VERSION,
       settings: this.settings,
       profile: this.profile ? { ...this.profile, modified: this.refVersion !== this.profileBase } : null,
       steps: STEPS.map((s) => ({ id: s.id, state: this.stepState(s.id), can: this.canRun(s.id).ok })),
       sources: this.sourceSummary(),
-      years: this.years.map((y) => ({ year: y.year, rows: y.n })),
+      years: this.years.map((y) => ({ year: y.year, rows: y.n, coverage: y.coverage || null, label: yearLabel(y) })),
+      period: this.years.length ? periodLabel(this.years) : "",
       results: this.results,
       refs: {
         keywords: this.refs.keywords ? { fileName: this.refs.keywords.fileName, segments: this.refs.keywords.segments.map((s) => ({ name: s.name, include: s.include.length, exclude: s.exclude.length, wildcard: s.include.filter((k) => k.endsWith("*")).length })), conflicts: this.refs.keywords.conflicts, warnings: this.refs.keywords.warnings } : null,

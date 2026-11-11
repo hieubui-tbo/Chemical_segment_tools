@@ -34,7 +34,7 @@ function cleanSettings(raw, warnings) {
   const out = {};
   if (!raw || typeof raw !== "object") return out;
   for (const [k, v] of Object.entries(raw)) {
-    if (!(k in DEFAULT_SETTINGS)) { warnings.push(`Bỏ qua thiết lập không xác định: ${k}`); continue; }
+    if (!Object.hasOwn(DEFAULT_SETTINGS, k)) { warnings.push(`Bỏ qua thiết lập không xác định: ${k}`); continue; }
     if (NON_PROFILE_SETTINGS.has(k)) continue;
     const def = DEFAULT_SETTINGS[k];
     if (ENUMS[k]) { if (ENUMS[k].includes(v)) out[k] = v; else warnings.push(`Giá trị "${v}" không hợp lệ cho ${k} — dùng mặc định.`); continue; }
@@ -49,6 +49,7 @@ function cleanSettings(raw, warnings) {
     if (k === "unitFactors") {
       const f = {};
       if (v && typeof v === "object") for (const [u, x] of Object.entries(v)) {
+        if (u === "__proto__" || u === "constructor" || u === "prototype") continue;
         if (x === null || x === "") f[u] = null;
         else if (Number(x) > 0) f[u] = Number(x);
         else warnings.push(`Hệ số đơn vị ${u} không hợp lệ — bỏ qua.`);
@@ -84,9 +85,9 @@ export function normalizeProfile(raw, { origin = "file" } = {}) {
       industry: (raw.industry?.entries || []).map((e) => ({ name: e.name, country: e.countryName || e.countryCode, industry: e.industry, segment: e.segment })),
       updatedAt: raw.savedAt,
     };
-    warnings.push("Đã chuyển file cấu hình kiểu cũ sang hồ sơ sản phẩm.");
+    warnings.push("Đã chuyển tệp cấu hình kiểu cũ sang hồ sơ sản phẩm.");
   } else if (raw.format !== PROFILE_FORMAT) {
-    throw new Error(`Không phải file hồ sơ ChemSeg (thiếu "format": "${PROFILE_FORMAT}").`);
+    throw new Error(`Không phải tệp hồ sơ ChemSeg (thiếu "format": "${PROFILE_FORMAT}").`);
   }
   if (p.formatVersion && p.formatVersion > PROFILE_VERSION) warnings.push(`Hồ sơ tạo bởi phiên bản mới hơn (định dạng ${p.formatVersion}) — một số tùy chọn có thể bị bỏ qua.`);
   const name = String(p.name ?? "").trim();

@@ -7,6 +7,7 @@ import { lookupUnit, UNIT_KIND, describeFactor } from "../dict/units.js";
 import { stripDiacritics } from "../text.js";
 import { quantileInc } from "../numbers.js";
 import { LABELS } from "../constants.js";
+import { VC } from "./prep.js";
 
 const val = (y, f, i) => (y.map[f] >= 0 ? y.rows[i][y.map[f]] : null);
 export const OUT_OF_SCOPE = "Ngoài phạm vi sản phẩm";
@@ -22,6 +23,8 @@ export const US = {
   NO_QTY: "Thiếu lượng",
   EXCLUDED: "Người dùng loại",
 };
+
+export const FACTOR_SOURCE = { USER: "Người dùng", DICT: "Từ điển" };
 
 /* ─────────── Suy luận khối lượng bao bì từ mô tả ─────────── */
 const W_UNIT = "(KGS?|KILOS?|KILOGRAMS?|KILOGRAMOS?|G|GR|GRS|GM|GMS|GRAMS?|GRAMOS?|LBS?)";
@@ -113,7 +116,7 @@ export function runUnits(engine, progress) {
     return {
       unit: st.unit || "(trống)", unitKey: st.unit, label: st.label, kind: st.kind, rows: st.rows, rowsPriced: st.rowsPriced, value: st.value,
       examples: [...st.examples].join(", "), dictFactor: st.dictFactor, appliedFactor: applied ?? null,
-      source: hasUser ? "Người dùng" : st.dictFactor ? "Từ điển" : "—", suggestion, inferred: 0,
+      source: hasUser ? FACTOR_SOURCE.USER : st.dictFactor ? FACTOR_SOURCE.DICT : "—", suggestion, inferred: 0,
     };
   }).sort((a, b) => b.value - a.value || b.rows - a.rows);
   const byUnit = new Map(table.map((t) => [t.unitKey, t]));
@@ -143,7 +146,7 @@ export function runUnits(engine, progress) {
       let status;
       if (!u.unit) status = US.BLANK;
       else if (f > 0) status = US.CONVERTED;
-      else if (t && t.source === "Người dùng") status = US.EXCLUDED;
+      else if (t && t.source === FACTOR_SOURCE.USER) status = US.EXCLUDED;
       else if (u.kind === UNIT_KIND.AMBIGUOUS) status = US.AMBIGUOUS;
       else if (u.kind === UNIT_KIND.NON_MASS) status = US.NON_MASS;
       else status = US.UNKNOWN;
@@ -263,6 +266,12 @@ export function runIQR(engine, progress) {
      OR  — loại khi lệch giá trị HOẶC ngoại lai IQR
    Luôn loại: dòng ngoài phạm vi sản phẩm; dòng nghi trùng nguồn khác (nếu bật); dòng trùng lặp (nếu bật).
    Giá bình quân = Σ Trị giá / Σ Lượng (tấn) — bình quân gia quyền theo khối lượng. */
+/** Lý do loại khỏi chỉ số (cột "Lý do loại"). */
+export const EXCL = {
+  OUT_OF_SCOPE: "Ngoài phạm vi sản phẩm", INSANE: "Giá/tấn phi lý – nghi sai đơn vị", CROSS_SOURCE: "Trùng giao dịch ở nguồn khác",
+  DUPLICATE: "Dòng trùng lặp", BOTH: "Lệch giá trị & giá trị ngoại lai IQR", IQR: "Ngoại lai IQR", VALUE: "Lệch giá trị",
+};
+
 export function runMetrics(engine, progress) {
   const s = engine.settings;
   const rule = s.outlierRule || "AND";
@@ -270,7 +279,7 @@ export function runMetrics(engine, progress) {
   const segSet = new Set();
   engine.years.forEach((y, yi) => {
     const TV = y.cols.TotalValue_Clean, QMT = y.cols.Quantity_MT, P = y.cols.UnitPrice_per_MT;
-    const SEG = y.cols.Final_Segment, VC = y.cols.Value_Check, IQR = y.cols.IQR_Check;
+    const SEG = y.cols.Final_Segment, VCOL = y.cols.Value_Check, IQR = y.cols.IQR_Check;
     const dup = y.cols.Duplicate_Flag, xdup = y.cols.Cross_Source_Dup, PS = y.cols.Price_Sanity;
     const inc = new Array(y.n), reason = new Array(y.n);
     const segs = new Map();
@@ -278,15 +287,15 @@ export function runMetrics(engine, progress) {
     const reasons = {};
     for (let i = 0; i < y.n; i++) {
       const seg = SEG[i] || UNCLASSIFIED;
-      const vBad = VC[i] === "Lệch vượt ngưỡng", iBad = IQR[i] === IQ.OUT;
+      const vBad = VCOL[i] === VC.BAD, iBad = IQR[i] === IQ.OUT;
       let r = "";
-      if (seg === OUT_OF_SCOPE) r = "Ngoài phạm vi sản phẩm";
-      else if (PS && PS[i]) r = "Giá/tấn phi lý – nghi sai đơn vị";
-      else if (s.excludeCrossSourceDup && xdup?.[i]) r = "Trùng giao dịch ở nguồn khác";
-      else if (s.excludeDuplicates && dup?.[i]) r = "Dòng trùng lặp";
-      else if (rule === "AND" && vBad && iBad) r = "Lệch giá trị & ngoại lai IQR";
-      else if (rule === "IQR" && iBad) r = "Ngoại lai IQR";
-      else if (rule === "OR" && (vBad || iBad)) r = vBad && iBad ? "Lệch giá trị & ngoại lai IQR" : vBad ? "Lệch giá trị" : "Ngoại lai IQR";
+      if (seg === OUT_OF_SCOPE) r = EXCL.OUT_OF_SCOPE;
+      else if (PS && PS[i]) r = EXCL.INSANE;
+      else if (s.excludeCrossSourceDup && xdup?.[i]) r = EXCL.CROSS_SOURCE;
+      else if (s.excludeDuplicates && dup?.[i]) r = EXCL.DUPLICATE;
+      else if (rule === "AND" && vBad && iBad) r = EXCL.BOTH;
+      else if (rule === "IQR" && iBad) r = EXCL.IQR;
+      else if (rule === "OR" && (vBad || iBad)) r = vBad && iBad ? EXCL.BOTH : vBad ? EXCL.VALUE : EXCL.IQR;
       inc[i] = r ? LABELS.NO : LABELS.YES; reason[i] = r;
       if (r) reasons[r] = (reasons[r] || 0) + 1;
       if (TV[i] > 0 && QMT[i] > 0) {
@@ -304,7 +313,7 @@ export function runMetrics(engine, progress) {
         if (!(TV[i] > 0 && QMT[i] > 0)) continue;
         const seg = SEG[i] || UNCLASSIFIED;
         if (seg === OUT_OF_SCOPE || (PS && PS[i]) || (s.excludeCrossSourceDup && xdup?.[i]) || (s.excludeDuplicates && dup?.[i])) continue;
-        const vBad = VC[i] === "Lệch vượt ngưỡng", iBad = IQR[i] === IQ.OUT;
+        const vBad = VCOL[i] === VC.BAD, iBad = IQR[i] === IQ.OUT;
         const ex = rr === "AND" ? vBad && iBad : rr === "IQR" ? iBad : vBad || iBad;
         if (ex) { n++; continue; }
         v += TV[i]; q += QMT[i];

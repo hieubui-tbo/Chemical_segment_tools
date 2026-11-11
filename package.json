@@ -3,13 +3,12 @@
   "version": "2.1.0",
   "private": true,
   "type": "module",
-  "description": "ChemSeg Analyst V18 — Công cụ xử lý dữ liệu xuất nhập khẩu hóa chất & phân bón",
+  "description": "ChemSeg Analyst (The Blue Ocean) — Công cụ xử lý dữ liệu xuất nhập khẩu hóa chất & phân bón",
   "scripts": {
     "dev": "vite",
     "build": "node scripts/check-profiles.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "samples": "node scripts/generate-samples.mjs",
     "pipeline": "node --max-old-space-size=4096 scripts/run-pipeline.mjs",
     "check-profiles": "node scripts/check-profiles.mjs"
   },

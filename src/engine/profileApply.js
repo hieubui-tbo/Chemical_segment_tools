@@ -1,5 +1,5 @@
 /* Áp dụng hồ sơ sản phẩm vào engine / đóng gói cấu hình hiện tại thành hồ sơ. */
-import { DEFAULT_SETTINGS, NON_PROFILE_SETTINGS, STEP_INDEX, SETTING_STEP, APP_VERSION } from "./constants.js";
+import { DEFAULT_SETTINGS, NON_PROFILE_SETTINGS, STEP_INDEX, SETTING_STEP } from "./constants.js";
 import { safeFileName } from "./text.js";
 import { buildKeywordSet } from "./steps/keywords.js";
 import { addIndustryRows } from "./steps/industry.js";
@@ -59,7 +59,6 @@ export function profileFromEngine(engine, meta = {}, { includeOverrides = true, 
     intent: meta.intent ?? base.intent ?? "",
     author: meta.author ?? base.author ?? "",
     updatedAt: new Date().toISOString().slice(0, 10),
-    appVersion: APP_VERSION,
     settings,
     segments: kw ? kw.segments.map((s) => ({ name: s.name, include: [...s.include], exclude: [...s.exclude], ...(s.note ? { note: s.note } : {}) })) : [],
     exclusions: kw ? [...(kw.exclusions || [])] : [],

@@ -4,7 +4,10 @@
    ═══════════════════════════════════════════════════════════════ */
 import { normText } from "./text.js";
 import { headerLabel } from "./columns.js";
-import { SCHEMA_FIELDS } from "./constants.js";
+import { SCHEMA_FIELDS, LABELS } from "./constants.js";
+
+/** Mã "năm" đặc biệt cho xếp hạng cả giai đoạn. */
+export const PERIOD = "__period";
 
 const pageOf = (arr, page = 0, size = 50) => ({ total: arr.length, page, size, rows: arr.slice(page * size, page * size + size) });
 
@@ -12,9 +15,9 @@ export function queryEntities(engine, { type = "Purchaser", search = "", filter 
   const D = engine.entities[type];
   if (!D) return { total: 0, rows: [] };
   let list = D.entities;
-  if (filter === "review") list = list.filter((e) => e.review === "Cần rà soát");
+  if (filter === "review") list = list.filter((e) => e.review === LABELS.REVIEW.REVIEW);
   else if (filter === "merged") list = list.filter((e) => e.nVariants > 1);
-  else if (filter === "low") list = list.filter((e) => e.confidence === "Thấp" || e.confidence === "Trung bình");
+  else if (filter === "low") list = list.filter((e) => e.confidence === LABELS.CONF.LOW || e.confidence === LABELS.CONF.MEDIUM);
   else if (filter === "flag") list = list.filter((e) => e.flags.length);
   else if (filter === "confirmed") list = list.filter((e) => e.isOverride);
   if (search) {
@@ -36,7 +39,7 @@ export function queryPlaceholders(engine, { type = "Purchaser" } = {}) {
 }
 
 export function queryRanking(engine, { year, scope = "P_ALL", topOnly = false, page = 0, size = 100 } = {}) {
-  const sc = engine.rankings?.years?.[year]?.[scope];
+  const sc = year === PERIOD ? engine.rankings?.period?.[scope] : engine.rankings?.years?.[year]?.[scope];
   if (!sc) return { total: 0, rows: [] };
   const E = engine.entities[sc.group].entities;
   const M = sc.group === "Purchaser" ? engine.industryMatch : null;

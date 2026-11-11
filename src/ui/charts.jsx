@@ -1,6 +1,7 @@
 /* Biểu đồ SVG nhẹ, có tooltip — theo quy chuẩn: thanh ≤ 24px bo 4px đầu dữ liệu, đường 2px, lưới mảnh. */
 import { useMemo, useRef, useState } from "react";
 import { n, pct, price, usd } from "./format.js";
+import { OUT_OF_SCOPE, UNCLASSIFIED } from "../engine/steps/price.js";
 
 const PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
 export const GRAY_UNCLASS = "#A3ACC6";
@@ -11,8 +12,8 @@ export function segmentColors(segments) {
   const map = {};
   let k = 0;
   segments.forEach((s) => {
-    if (s === "Chưa phân loại") map[s] = GRAY_UNCLASS;
-    else if (s === "Ngoài phạm vi sản phẩm") map[s] = GRAY_OUT;
+    if (s === UNCLASSIFIED) map[s] = GRAY_UNCLASS;
+    else if (s === OUT_OF_SCOPE) map[s] = GRAY_OUT;
     else map[s] = k < PALETTE.length ? PALETTE[k++] : "#8C95B3";
   });
   return map;
@@ -54,8 +55,8 @@ export function ParetoChart({ data, threshold, color = "#D6336C", height = 250 }
   return (
     <div className="chart" ref={ref} onMouseLeave={hide}>
       <div className="legend">
-        <span><i style={{ background: color }} />Tỷ trọng DN thuộc Top</span>
-        <span><i style={{ background: "#C3CADD" }} />DN ngoài Top</span>
+        <span><i style={{ background: color }} />Tỷ trọng doanh nghiệp thuộc Top</span>
+        <span><i style={{ background: "#C3CADD" }} />Doanh nghiệp ngoài Top</span>
         <span><i className="line-key" style={{ background: "#0C1433" }} />Tỷ trọng lũy kế (trục phải)</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Biểu đồ Pareto">
@@ -124,7 +125,7 @@ export function PriceCompare({ rows, colors }) {
 }
 
 /** Thanh xếp chồng 100% theo năm (cơ cấu trị giá theo phân khúc). */
-export function StackRows({ years, data, colors, valueKey = "value" }) {
+export function StackRows({ years, data, colors, valueKey = "value", labels = {} }) {
   const { ref, tip, show, hide } = useTip();
   const segs = Object.keys(colors);
   return (
@@ -135,14 +136,14 @@ export function StackRows({ years, data, colors, valueKey = "value" }) {
           const items = data[yr] || [];
           const tot = items.reduce((a, it) => a + (it[valueKey] || 0), 0) || 1;
           return (
-            <div key={yr} style={{ display: "grid", gridTemplateColumns: "54px 1fr", alignItems: "center", gap: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-2)" }}>{yr}</div>
+            <div key={yr} style={{ display: "grid", gridTemplateColumns: "96px 1fr", alignItems: "center", gap: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--text-2)" }} title={labels[yr] || yr}>{labels[yr] || yr}</div>
               <div className="stackbar">
                 {segs.map((s) => {
                   const it = items.find((x) => x.segment === s);
                   const v = it ? it[valueKey] || 0 : 0;
                   if (!v) return null;
-                  return <div key={s} style={{ width: (v / tot) * 100 + "%", background: colors[s] }} onMouseMove={(e) => show(e, <><b>{yr} · {s}</b><div className="t-sub">{valueKey === "value" ? usd(v) : n(v)} · {pct(v / tot)}</div><div className="t-sub">{n(it.rows)} dòng</div></>)} />;
+                  return <div key={s} style={{ width: (v / tot) * 100 + "%", background: colors[s] }} onMouseMove={(e) => show(e, <><b>{labels[yr] || yr} · {s}</b><div className="t-sub">{valueKey === "value" ? usd(v) : n(v)} · {pct(v / tot)}</div><div className="t-sub">{n(it.rows)} dòng</div></>)} />;
                 })}
               </div>
             </div>
@@ -193,7 +194,7 @@ export function useSegColors(state) {
     const segs = [...(state?.refs?.keywords?.segments?.map((s) => s.name) || [])];
     const r = state?.results?.classify;
     if (r) Object.values(r.years).forEach((y) => y.segments.forEach((s) => { if (!segs.includes(s.segment)) segs.push(s.segment); }));
-    ["Chưa phân loại", "Ngoài phạm vi sản phẩm"].forEach((s) => { const i = segs.indexOf(s); if (i >= 0) { segs.splice(i, 1); segs.push(s); } });
+    [UNCLASSIFIED, OUT_OF_SCOPE].forEach((s) => { const i = segs.indexOf(s); if (i >= 0) { segs.splice(i, 1); segs.push(s); } });
     return segmentColors(segs);
   }, [state]);
 }

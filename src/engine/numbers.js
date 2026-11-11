@@ -78,25 +78,53 @@ export function excelSerialToDate(serial) {
 }
 
 /**
- * Đọc ngày: Date object | serial Excel | "dd/mm/yyyy" | "yyyy-mm-dd" | "dd-mm-yyyy" | "dd.mm.yyyy".
- * Chuỗi dạng a/b/yyyy được hiểu theo quy ước Việt Nam (ngày/tháng/năm), trừ khi a > 12 → tháng/ngày.
+ * Đọc ngày: Date object | serial Excel | số yyyymmdd | "yyyy-mm-dd" | "dd/mm/yyyy" | "mm/dd/yyyy" | "mm/yyyy" | "yyyy-mm".
+ * order: thứ tự ngày/tháng của dạng a/b/yyyy — "dmy" (quy ước Việt Nam, mặc định) hoặc "mdy" (kiểu Mỹ).
+ * Nên xác định order cho CẢ CỘT bằng detectDateOrder() để mọi dòng đọc nhất quán.
  */
-export function parseDate(v) {
+export function parseDate(v, order = "dmy") {
   if (v === null || v === undefined || v === "") return null;
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
-  if (typeof v === "number") return v > 59 && v < 80000 ? excelSerialToDate(v) : null;
+  if (typeof v === "number") {
+    if (Number.isInteger(v) && v >= 19000101 && v <= 21001231) return mkDate(Math.floor(v / 10000), Math.floor(v / 100) % 100, v % 100);
+    if (Number.isInteger(v) && v >= 1900 && v <= 2100) return null; // chỉ có năm — không phải ngày
+    return v > 59 && v < 80000 ? excelSerialToDate(v) : null;
+  }
   const s = String(v).trim();
   let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (m) return mkDate(+m[1], +m[2], +m[3]);
-  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?!\d)/);
   if (m) {
     let a = +m[1], b = +m[2], y = +m[3];
     if (y < 100) y += 2000;
-    if (b > 12 && a <= 12) return mkDate(y, a, b); // mm/dd/yyyy
-    return mkDate(y, b, a); // dd/mm/yyyy
+    if (a > 12 && b <= 12) return mkDate(y, b, a);          // chắc chắn ngày/tháng
+    if (b > 12 && a <= 12) return mkDate(y, a, b);          // chắc chắn tháng/ngày
+    return order === "mdy" ? mkDate(y, a, b) : mkDate(y, b, a);
   }
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return mkDate(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{4})[-/.](\d{1,2})$/);                  // yyyy-mm
+  if (m) return mkDate(+m[1], +m[2], 1);
+  m = s.match(/^(?:T|THANG\s*)?(\d{1,2})[-/.](\d{4})$/i);   // mm/yyyy, T10/2026
+  if (m) return mkDate(+m[2], +m[1], 1);
   const t = Date.parse(s);
-  return isNaN(t) ? null : new Date(t);
+  if (isNaN(t)) return null;
+  const d = new Date(t);
+  return mkDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
+/** Xác định thứ tự ngày/tháng của một cột: có giá trị "13/02/2024" ⇒ dmy; "02/13/2024" ⇒ mdy; không rõ ⇒ dmy. */
+export function detectDateOrder(values, limit = 5000) {
+  let dmy = 0, mdy = 0, n = 0;
+  for (const v of values) {
+    if (n++ > limit) break;
+    if (typeof v !== "string") continue;
+    const m = v.trim().match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(?!\d)/);
+    if (!m) continue;
+    if (+m[1] > 12 && +m[2] <= 12) dmy++;
+    else if (+m[2] > 12 && +m[1] <= 12) mdy++;
+  }
+  return mdy > dmy ? "mdy" : "dmy";
 }
 function mkDate(y, mo, d) {
   if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;

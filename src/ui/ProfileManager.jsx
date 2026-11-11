@@ -2,18 +2,21 @@
    HỒ SƠ SẢN PHẨM — chọn / tạo / lưu / chia sẻ cấu hình theo từng sản phẩm
    ═══════════════════════════════════════════════════════════════ */
 import { useEffect, useRef, useState } from "react";
-import { Package, X, Save, Download, Upload, Plus, Trash2, Check, Library, HardDrive, Pencil, Github, Copy } from "lucide-react";
+import { Package, X, Save, Download, Upload, Plus, Trash2, Check, Library, HardDrive, Pencil, Share2, Copy } from "lucide-react";
 import { useApp } from "./store.jsx";
 import { Btn, Pill, Callout, Field, Toggle } from "./components.jsx";
 import { profileSummary } from "./profiles.js";
 import { PROFILE_FORMAT } from "../engine/profile.js";
 import { n } from "./format.js";
 
+/** "2026-11-11" → "11/11/2026" (không bị ngắt dòng giữa ngày). */
+const fmtDay = (d) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d)); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(d); };
+
 const ORIGIN = { library: { label: "Thư viện chung", tone: "info" }, local: { label: "Trên máy này", tone: "violet" }, file: { label: "Từ file", tone: "mute" }, new: { label: "Mới — chưa lưu", tone: "warn" } };
 
 export function profileLine(p) {
   const s = p.summary || profileSummary(p);
-  return [`${n(s.segments)} phân khúc`, `${n(s.keywords)} từ khóa`, s.exclusions ? `${n(s.exclusions)} loại trừ` : null, s.overrides ? `${n(s.overrides)} tên DN` : null, s.industry ? `${n(s.industry)} DN có ngành` : null, s.customSettings ? `${n(s.customSettings)} thiết lập riêng` : null].filter(Boolean).join(" · ");
+  return [`${n(s.segments)} phân khúc`, `${n(s.keywords)} từ khóa`, s.exclusions ? `${n(s.exclusions)} loại trừ` : null, s.overrides ? `${n(s.overrides)} tên doanh nghiệp` : null, s.industry ? `${n(s.industry)} doanh nghiệp có ngành` : null, s.customSettings ? `${n(s.customSettings)} thiết lập riêng` : null].filter(Boolean).join(" · ");
 }
 
 function ProfileCard({ p, active, onApply, onExport, onDelete, onClone }) {
@@ -23,7 +26,7 @@ function ProfileCard({ p, active, onApply, onExport, onDelete, onClone }) {
       <div className="pf-top">
         <div style={{ minWidth: 0 }}>
           <div className="pf-name">{p.name}</div>
-          <div className="pf-meta">{[p.product, p.hsCodes?.length ? "HS " + p.hsCodes.join(", ") : null, p.updatedAt ? "cập nhật " + p.updatedAt : null].filter(Boolean).join(" · ") || "—"}</div>
+          <div className="pf-meta">{[p.product, p.hsCodes?.length ? "HS " + p.hsCodes.join(", ") : null, p.updatedAt ? "cập nhật " + fmtDay(p.updatedAt) : null].filter(Boolean).join(" · ") || "—"}</div>
         </div>
         <Pill tone={o.tone}>{o.label}</Pill>
       </div>
@@ -82,7 +85,7 @@ export function ProfileManager() {
           <div>
             <div className="hero-kicker">Cấu hình theo sản phẩm</div>
             <div style={{ fontSize: 20, fontWeight: 800 }}>Hồ sơ sản phẩm</div>
-            <div className="small" style={{ opacity: 0.92 }}>Mỗi sản phẩm một hồ sơ: phân khúc & từ khóa, loại trừ, hệ số đơn vị, khoảng giá hợp lý, cách phân khúc, quy tắc lọc, từ điển DN.</div>
+            <div className="small" style={{ opacity: 0.92 }}>Mỗi sản phẩm một hồ sơ: phân khúc & từ khóa, loại trừ, hệ số đơn vị, khoảng giá hợp lý, cách phân khúc, quy tắc lọc, từ điển doanh nghiệp.</div>
           </div>
           <button className="x-btn" onClick={close}><X size={18} /></button>
         </div>
@@ -105,7 +108,7 @@ export function ProfileManager() {
               <div className="row" style={{ gap: 8, marginTop: 12 }}>
                 <Btn size="sm" icon={Save} color="var(--brand)" onClick={() => saveProfileLocal(edit ? meta() : {}, opts)}>{cur.origin === "local" ? "Lưu thay đổi" : "Lưu thành hồ sơ trên máy này"}</Btn>
                 <Btn size="sm" kind="ghost" icon={Pencil} onClick={() => setEdit((v) => !v)}>{edit ? "Ẩn thông tin" : "Sửa thông tin"}</Btn>
-                <Btn size="sm" kind="ghost" icon={Download} onClick={() => download("Xuất hồ sơ", "exportProject", { meta: edit ? meta() : {}, opts })}>Xuất file hồ sơ</Btn>
+                <Btn size="sm" kind="ghost" icon={Download} onClick={() => download("Xuất hồ sơ", "exportProject", { meta: edit ? meta() : {}, opts })}>Xuất tệp hồ sơ</Btn>
               </div>
             </div>
           ) : (
@@ -114,15 +117,15 @@ export function ProfileManager() {
           {edit && (
             <div className="pf-form">
               <div className="grid-2" style={{ gap: 12 }}>
-                <Field label="Tên hồ sơ"><input className="input" value={form.name} placeholder="vd: Urê – thị trường Việt Nam" onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-                <Field label="Sản phẩm"><input className="input" value={form.product} placeholder="vd: Urea" onChange={(e) => setForm({ ...form, product: e.target.value })} /></Field>
-                <Field label="Mã HS" hint="Cách nhau bằng dấu phẩy"><input className="input" value={form.hsCodes} placeholder="vd: 310210, 310230" onChange={(e) => setForm({ ...form, hsCodes: e.target.value })} /></Field>
+                <Field label="Tên hồ sơ"><input className="input" value={form.name} placeholder="ví dụ: Urê – thị trường Việt Nam" onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+                <Field label="Sản phẩm"><input className="input" value={form.product} placeholder="ví dụ: Urea" onChange={(e) => setForm({ ...form, product: e.target.value })} /></Field>
+                <Field label="Mã HS" hint="Cách nhau bằng dấu phẩy"><input className="input" value={form.hsCodes} placeholder="ví dụ: 310210, 310230" onChange={(e) => setForm({ ...form, hsCodes: e.target.value })} /></Field>
                 <Field label="Người phụ trách"><input className="input" value={form.author} onChange={(e) => setForm({ ...form, author: e.target.value })} /></Field>
               </div>
               <Field label="Ý đồ phân khúc" hint="Phân khúc theo tiêu chí nào và vì sao — giúp người khác dùng lại đúng mục đích."><textarea className="input" rows={3} value={form.intent} onChange={(e) => setForm({ ...form, intent: e.target.value })} /></Field>
               <Field label="Ghi chú"><textarea className="input" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
               <div className="row" style={{ justifyContent: "space-between" }}>
-                <Toggle checked={withRefs} onChange={setWithRefs} label="Kèm từ điển DN & Industry Master khi lưu / xuất" />
+                <Toggle checked={withRefs} onChange={setWithRefs} label="Kèm từ điển doanh nghiệp & Industry Master khi lưu / xuất" />
                 <Btn size="sm" icon={Save} color="var(--brand)" onClick={() => saveProfileLocal({ ...meta(), asNew: false }, opts)}>Lưu hồ sơ</Btn>
               </div>
             </div>
@@ -130,13 +133,8 @@ export function ProfileManager() {
 
           <div className="row" style={{ gap: 8, marginTop: 16 }}>
             <Btn size="sm" kind="soft" icon={Plus} onClick={newBlank}>Tạo hồ sơ trống</Btn>
-            <Btn size="sm" kind="soft" icon={Upload} onClick={() => fileRef.current?.click()}>Nhập file hồ sơ (.json)</Btn>
+            <Btn size="sm" kind="soft" icon={Upload} onClick={() => fileRef.current?.click()}>Nhập tệp hồ sơ (.json)</Btn>
             <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files[0]; if (f) importProfileFile(f); e.target.value = ""; }} />
-          </div>
-
-          <h4><Library size={13} style={{ verticalAlign: -2 }} /> Thư viện chung — dùng cho cả nhóm ({library.length})</h4>
-          <div className="pf-list">
-            {library.map((p) => <ProfileCard key={"l" + p.id} p={p} active={isActive(p)} onApply={() => applyProfile(p)} onClone={() => clone(p)} onExport={() => downloadJson(p)} />)}
           </div>
 
           <h4><HardDrive size={13} style={{ verticalAlign: -2 }} /> Trên máy này ({localProfiles.length})</h4>
@@ -144,14 +142,22 @@ export function ProfileManager() {
             <div className="pf-list">
               {localProfiles.map((p) => <ProfileCard key={"m" + p.id} p={p} active={isActive(p)} onApply={() => applyProfile(p)} onExport={() => downloadJson(p)} onDelete={() => { if (window.confirm(`Xóa hồ sơ "${p.name}" khỏi trình duyệt này?`)) removeLocal(p.id); }} />)}
             </div>
-          ) : <p className="muted small">Chưa có. Hồ sơ bạn lưu sẽ nằm trong trình duyệt này (không đồng bộ sang máy khác — dùng “Xuất file” để chia sẻ).</p>}
+          ) : <p className="muted small">Chưa có. Hồ sơ bạn lưu nằm trong trình duyệt này — không đồng bộ sang máy khác và có thể mất khi xóa dữ liệu trình duyệt. Hãy <b>Xuất tệp hồ sơ</b> để lưu trữ lâu dài và chia sẻ.</p>}
 
-          <h4><Github size={13} style={{ verticalAlign: -2 }} /> Đưa hồ sơ vào thư viện chung</h4>
-          <ol>
-            <li>Bấm <b>Xuất file hồ sơ</b> để tải file <code>HoSo_….json</code>.</li>
-            <li>Trên GitHub, mở thư mục <code>profiles/</code> của dự án → <b>Add file → Upload files</b> → kéo file vào → <b>Commit changes</b>.</li>
-            <li>Vercel tự cập nhật sau khoảng 1 phút — cả nhóm tải lại trang là thấy. Hồ sơ lỗi sẽ không làm hỏng bản đang chạy.</li>
-          </ol>
+          {library.length > 0 && (
+            <>
+              <h4><Library size={13} style={{ verticalAlign: -2 }} /> Thư viện chung ({library.length})</h4>
+              <div className="pf-list">
+                {library.map((p) => <ProfileCard key={"l" + p.id} p={p} active={isActive(p)} onApply={() => applyProfile(p)} onClone={() => clone(p)} onExport={() => downloadJson(p)} />)}
+              </div>
+            </>
+          )}
+
+          <h4><Share2 size={13} style={{ verticalAlign: -2 }} /> Chia sẻ hồ sơ</h4>
+          <ul>
+            <li>Gửi tệp <code>HoSo_….json</code> cho đồng nghiệp — họ bấm <b>Nhập tệp hồ sơ</b>.</li>
+            <li>Muốn hồ sơ hiện sẵn cho cả nhóm (tùy chọn): người quản trị mã nguồn đặt tệp vào thư mục <code>profiles/</code> trên GitHub; công cụ tự cập nhật ở lần triển khai kế tiếp. Không đưa dữ liệu nhạy cảm của khách hàng vào đây.</li>
+          </ul>
         </div>
       </aside>
     </>

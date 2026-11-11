@@ -9,7 +9,7 @@ import { compileMatcher } from "../src/engine/steps/classify.js";
 import { inferPackageKg } from "../src/engine/steps/price.js";
 import { Engine } from "../src/engine/engine.js";
 import * as X from "../src/engine/io/export.js";
-import { buildWorkbookA, buildWorkbookB, buildKeywords, buildIndustryV17 } from "./fixtures.js";
+import { buildWorkbookA, buildWorkbookB, buildKeywords, buildIndustryV17, buildMultiYearWorkbook, buildMultiYearRows, H as HEADERS } from "./fixtures.js";
 
 describe("Đọc số chịu lỗi", () => {
   it.each([
@@ -44,16 +44,16 @@ describe("Đơn vị", () => {
 describe("Khóa so khớp tên DN", () => {
   const same = (a, b) => expect(analyzeName(a).coreKey).toBe(analyzeName(b).coreKey);
   const diff = (a, b) => expect(analyzeName(a).coreKey).not.toBe(analyzeName(b).coreKey);
-  it("bí danh Việt–Anh", () => { same("CÔNG TY TNHH PHÂN BÓN PHÚ BÌNH", "PHU BINH FERTILIZER CO., LTD."); same("CONG TY TNHH MTV THUONG MAI TU THANH HA", "TRADING COMPANY LIMITED TU THANH HA"); });
+  it("bí danh Việt–Anh", () => { same("CÔNG TY TNHH PHÂN BÓN NAM PHONG", "NAM PHONG FERTILIZER CO., LTD."); same("CONG TY TNHH MTV THUONG MAI MINH KHOA", "TRADING COMPANY LIMITED MINH KHOA"); });
   it("Đ và MTV", () => same("CÔNG TY TNHH MTV ĐẠI PHÁT", "DAI PHAT CO LTD"));
   it("PetroVietnam", () => same("TỔNG CÔNG TY PHÂN BÓN VÀ HÓA CHẤT DẦU KHÍ", "PETROVIETNAM FERTILIZER AND CHEMICALS CORPORATION"));
-  it("thứ tự tên riêng có ý nghĩa", () => diff("HUNG PHU FERTILIZER", "PHU HUNG FERTILIZER"));
-  it("chữ Kirin", () => same('ООО "ТК РУСХИМ"', "OOO TK RUSKHIM"));
-  it("M/S tiền tố Ấn Độ", () => same("M/S SIGMA ALDRICH INTERNATIONAL GMBH", "SIGMA-ALDRICH INTERNATIONAL GMBH"));
-  it("chi nhánh Indonesia gộp về DN chính", () => same("PT. ASIA KIMINDO PRIMA CAB. MEDAN", "PT ASIA KIMINDO PRIMA"));
+  it("thứ tự tên riêng có ý nghĩa", () => diff("AN BINH FERTILIZER", "BINH AN FERTILIZER"));
+  it("chữ Kirin", () => same('ООО "ТК АГРОСНАБ"', "OOO TK AGROSNAB"));
+  it("M/S tiền tố Ấn Độ", () => same("M/S ORVANTA LABS INTERNATIONAL GMBH", "ORVANTA-LABS INTERNATIONAL GMBH"));
+  it("chi nhánh Indonesia gộp về DN chính", () => same("PT. SURYA KIMIA LESTARI CAB. MEDAN", "PT SURYA KIMIA LESTARI"));
   it("cờ nhiều DN trong một ô — không bắt nhầm PTE LTD", () => {
     expect(analyzeName("ABC CO LTD / XYZ JSC").flags).toContain("Có thể nhiều DN trong một ô");
-    expect(analyzeName("GOLDEN BARLEY INTERNATIONAL PTE LTD").flags).not.toContain("Có thể nhiều DN trong một ô");
+    expect(analyzeName("SILVERLEAF INTERNATIONAL PTE LTD").flags).not.toContain("Có thể nhiều DN trong một ô");
   });
   it("tên hiển thị", () => {
     expect(cleanDisplayName("BASF SE")).toBe("BASF SE");
@@ -64,24 +64,24 @@ describe("Khóa so khớp tên DN", () => {
 
 describe("Placeholder", () => {
   const ph = compilePlaceholders(["DUMMY*"]);
-  it.each(["TO THE ORDER OF VIETCOMBANK", "", "N/A", "---", "NONE", "Theo lệnh của ngân hàng", "DUMMY COMPANY", "12345"])("'%s' là placeholder", (s) => expect(placeholderReason(s, ph)).toBeTruthy());
-  it("tên Kirin không bị coi là trống", () => expect(placeholderReason('ООО "ТК РУСХИМ"', ph)).toBeNull());
+  it.each(["TO THE ORDER OF ABC BANK", "", "N/A", "---", "NONE", "Theo lệnh của ngân hàng", "DUMMY COMPANY", "12345"])("'%s' là placeholder", (s) => expect(placeholderReason(s, ph)).toBeTruthy());
+  it("tên Kirin không bị coi là trống", () => expect(placeholderReason('ООО "ТК АГРОСНАБ"', ph)).toBeNull());
 });
 
 describe("Từ khóa", () => {
-  const kw = { segments: [{ name: "Urea", include: ["UREA"], exclude: [] }, { name: "Phân bón", include: ["FERTILIZER", "PHAN BON", "GRANULAR"], exclude: ["FEED GRADE"] }, { name: "Công nghiệp", include: ["GALVANIZ*", "INDUSTRIAL"], exclude: [] }], exclusions: ["BENZYL"] };
+  const kw = { segments: [{ name: "Urea", include: ["UREA"], exclude: [] }, { name: "Phân bón", include: ["FERTILIZER", "PHAN BON", "GRANULAR"], exclude: ["FEED GRADE"] }, { name: "Công nghiệp", include: ["GALVANIZ*", "INDUSTRIAL"], exclude: [] }], exclusions: ["ZINC"] };
   it("từ nguyên vẹn: THIOUREA ≠ UREA", () => expect(compileMatcher(kw, "word").find("THIOUREA 99%").seg).toBeNull());
   it("chế độ chứa chuỗi giữ hành vi V17", () => expect(compileMatcher(kw, "substring").find("THIOUREA 99%").seg).toBe("Urea"));
-  it("không dấu khớp có dấu", () => expect(compileMatcher(kw).find("Phân bón amoni clorua").seg).toBe("Phân bón"));
+  it("không dấu khớp có dấu", () => expect(compileMatcher(kw).find("Phân bón magie sunfat").seg).toBe("Phân bón"));
   it("tiền tố *", () => expect(compileMatcher(kw).find("FOR GALVANIZING BATH").seg).toBe("Công nghiệp"));
   it("loại trừ riêng", () => expect(compileMatcher(kw).find("FERTILIZER FEED GRADE").seg).toBeNull());
-  it("cột LOẠI TRỪ ⇒ ngoài phạm vi", () => expect(compileMatcher(kw).find("BENZYL AMMONIUM CHLORIDE").seg).toBe("Ngoài phạm vi sản phẩm"));
+  it("cột LOẠI TRỪ ⇒ ngoài phạm vi", () => expect(compileMatcher(kw).find("ZINC SULPHATE 33%").seg).toBe("Ngoài phạm vi sản phẩm"));
   it("nhiều từ khóa thắng", () => expect(compileMatcher(kw).find("INDUSTRIAL FERTILIZER GRANULAR").seg).toBe("Phân bón"));
 });
 
 describe("Suy luận khối lượng bao bì", () => {
-  it.each([["CLORURO DE AMONIO 160 BOLSAS DE 25 KG", "BLE", 25], ["AMMONIUM CHLORIDE 25KG/BAG", "BAG", 25], ["NH4CL (500G/BOTTLE)", "BTL", 0.5], ["P.A. X 1 KG", "FRC", 1], ["213330-2.5KG", "UNT", 2.5], ["50 LBS EACH", "BAG", 22.6796]])("%s", (d, u, kg) => expect(inferPackageKg(d, u).kg).toBeCloseTo(kg, 3));
-  it("không suy luận khi không có khối lượng", () => expect(inferPackageKg("AMMONIUM CHLORIDE", "BAG")).toBeNull());
+  it.each([["SULFATO DE MAGNESIO 160 BOLSAS DE 25 KG", "BLE", 25], ["MAGNESIUM SULPHATE 25KG/BAG", "BAG", 25], ["MGSO4 (500G/BOTTLE)", "BTL", 0.5], ["P.A. X 1 KG", "FRC", 1], ["REF 402117-2.5KG", "UNT", 2.5], ["50 LBS EACH", "BAG", 22.6796]])("%s", (d, u, kg) => expect(inferPackageKg(d, u).kg).toBeCloseTo(kg, 3));
+  it("không suy luận khi không có khối lượng", () => expect(inferPackageKg("MAGNESIUM SULPHATE", "BAG")).toBeNull());
 });
 
 /* ═════════ KIỂM THỬ TOÀN TRÌNH ═════════ */
@@ -93,7 +93,7 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
 
   beforeAll(() => {
     e = new Engine();
-    const res = e.addFiles([{ name: "NH4CL_tonghop.xlsx", buffer: buildWorkbookA() }, { name: "Data2024.xlsx", buffer: buildWorkbookB() }]);
+    const res = e.addFiles([{ name: "TongHop_GiaLap.xlsx", buffer: buildWorkbookA() }, { name: "Data2024.xlsx", buffer: buildWorkbookB() }]);
     expect(res.errors).toEqual([]);
     e.confirmSources([]);
     e.confirmSchema();
@@ -126,18 +126,18 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
   it("gộp bí danh Việt–Anh + 'Viet Nam'/'VN' thành một DN, mã nhóm thống nhất giữa các năm", () => {
     const y23 = e.years[0], y24 = e.years[1];
     const ids = new Set();
-    for (let i = 0; i < y23.n; i++) if (/THUY NGAN|THUỶ NGÂN/i.test(String(raw(y23, "purchaser", i)))) ids.add(col("2023", "Purchaser_Entity_ID")[i]);
-    for (let i = 0; i < y24.n; i++) if (/THUY NGAN/i.test(String(raw(y24, "purchaser", i)))) ids.add(col("2024", "Purchaser_Entity_ID")[i]);
+    for (let i = 0; i < y23.n; i++) if (/LAM HONG|LAM HỒNG/i.test(String(raw(y23, "purchaser", i)))) ids.add(col("2023", "Purchaser_Entity_ID")[i]);
+    for (let i = 0; i < y24.n; i++) if (/LAM HONG/i.test(String(raw(y24, "purchaser", i)))) ids.add(col("2024", "Purchaser_Entity_ID")[i]);
     expect(ids.size).toBe(1);
   });
-  it("không gộp 'Phú Hưng' với 'Hưng Phú'", () => {
-    const a = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).startsWith("HUNG PHU"));
-    const b = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).startsWith("PHU HUNG"));
+  it("không gộp 'An Bình' với 'Bình An'", () => {
+    const a = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).startsWith("AN BINH"));
+    const b = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).startsWith("BINH AN"));
     expect(col("2024", "Purchaser_Entity_ID")[a]).not.toBe(col("2024", "Purchaser_Entity_ID")[b]);
   });
   it("gộp tên Kirin với tên Latin", () => {
     const y = e.years[1];
-    const ids = new Set(); for (let i = 0; i < y.n; i++) if (/RUSKHIM|РУСХИМ/.test(String(raw(y, "purchaser", i)))) ids.add(col("2024", "Purchaser_Entity_ID")[i]);
+    const ids = new Set(); for (let i = 0; i < y.n; i++) if (/AGROSNAB|АГРОСНАБ/.test(String(raw(y, "purchaser", i)))) ids.add(col("2024", "Purchaser_Entity_ID")[i]);
     expect(ids.size).toBe(1);
   });
   it("placeholder & ô trống KHÔNG vào bảng xếp hạng (V17 xếp '(Placeholder)' và 'TO THE ORDER OF…' vào Top)", () => {
@@ -148,14 +148,14 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
   });
   it("phạm vi Việt Nam nhận cả 'Viet Nam' và 'VN'", () => {
     const vn = e.rankings.years["2023"].P_VN.list.map((r) => e.entities.Purchaser.entities[r.e].name);
-    expect(vn.some((n) => /Thuy Ngan/i.test(n))).toBe(true);
+    expect(vn.some((n) => /Lam Hong/i.test(n))).toBe(true);
   });
   it("mã ISO2 'DE' → Châu Âu", () => {
     const i = findRow("2023", (y, i) => raw(y, "countryOrigin", i) === "DE");
     expect(col("2023", "Supplier_Continent")[i]).toBe("Châu Âu");
   });
-  it("phát hiện trùng nguồn VietChina ↔ Vietnam và không cộng vào xếp hạng", () => {
-    const i = findRow("2023", (y, i) => raw(y, "dataSource", i) === "VietChina");
+  it("phát hiện trùng nguồn (nguồn tổng hợp ↔ hải quan nước mua) và không cộng vào xếp hạng", () => {
+    const i = findRow("2023", (y, i) => raw(y, "dataSource", i) === "Asia Trade Hub");
     expect(col("2023", "Cross_Source_Dup")[i]).toMatch(/Trùng với nguồn "Vietnam"/);
     expect(Number.isNaN(col("2023", "Row_Ranking_Value")[i])).toBe(true);
   });
@@ -165,20 +165,20 @@ describe("Toàn trình trên dữ liệu có bẫy", () => {
     const j = findRow("2023", (y, i) => raw(y, "unit", i) === "TON");
     expect(col("2023", "Unit_Status")[j]).toMatch(/Mơ hồ/);
   });
-  it("giá/tấn phi lý (506.000 'TNE' = kg) bị đánh dấu và loại khỏi chỉ số", () => {
-    const i = findRow("2023", (y, i) => String(raw(y, "quantity", i)) === "506000");
+  it("giá/tấn phi lý (480.000 'TNE' = kg) bị đánh dấu và loại khỏi chỉ số", () => {
+    const i = findRow("2023", (y, i) => String(raw(y, "quantity", i)) === "480000");
     expect(col("2023", "Price_Sanity")[i]).toMatch(/phi lý/);
     expect(col("2023", "Final_Included")[i]).toBe("Không");
   });
-  it("THIOUREA không bị xếp vào phân khúc Urea; amoni bậc bốn ngoài phạm vi", () => {
+  it("THIOUREA không bị xếp vào phân khúc Urea; hàng khác (kẽm sunfat) ngoài phạm vi", () => {
     const i = findRow("2023", (y, i) => String(raw(y, "productDesc", i)).startsWith("THIOUREA"));
     expect(col("2023", "Keyword_Segment")[i]).not.toBe("Urea test");
-    const j = findRow("2023", (y, i) => String(raw(y, "productDesc", i)).startsWith("BENZYL"));
+    const j = findRow("2023", (y, i) => String(raw(y, "productDesc", i)).startsWith("ZINC"));
     expect(col("2023", "Final_Segment")[j]).toBe("Ngoài phạm vi sản phẩm");
   });
   it("Industry Master kiểu V17 (nhiều sheet, tên cũ) vẫn khớp", () => {
     expect(e.results.industry.entitiesMatched).toBe(2);
-    const i = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).includes("KIMINDO"));
+    const i = findRow("2024", (y, i) => String(raw(y, "purchaser", i)).includes("SURYA KIMIA"));
     expect(col("2024", "Industry_Segment")[i]).toBe("Công nghiệp");
   });
   it("chạy lại bước 7 xóa kết quả các bước sau (không còn dữ liệu lệch pha)", () => {
@@ -212,7 +212,7 @@ import { buildKeywordSet, testKeywords } from "../src/engine/steps/keywords.js";
 
 const fresh = () => {
   const e = new Engine();
-  e.addFiles([{ name: "NH4CL_tonghop.xlsx", buffer: buildWorkbookA() }, { name: "Data2024.xlsx", buffer: buildWorkbookB() }]);
+  e.addFiles([{ name: "TongHop_GiaLap.xlsx", buffer: buildWorkbookA() }, { name: "Data2024.xlsx", buffer: buildWorkbookB() }]);
   e.confirmSources([]); e.confirmSchema();
   return e;
 };
@@ -221,14 +221,13 @@ const DEF = {
     { name: "Phân bón", include: ["FERTILIZER", "PHAN BON", "AGRICULTURAL"], exclude: ["FEED GRADE"] },
     { name: "Công nghiệp", include: ["INDUSTRIAL", "GALVANIZ*", "TECH GRADE"] },
   ],
-  exclusions: ["BENZYL", "QUATERNARY"],
+  exclusions: ["ZINC SULPHATE", "ZINC"],
 };
 
 describe("Hồ sơ sản phẩm", () => {
-  it("mọi hồ sơ trong thư viện profiles/ đều hợp lệ và id không trùng", () => {
+  it("mọi hồ sơ trong thư viện profiles/ (nếu có) đều hợp lệ và id không trùng", () => {
     const dir = new URL("../profiles/", import.meta.url);
     const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
-    expect(files.length).toBeGreaterThanOrEqual(2);
     const ids = new Set();
     for (const f of files) {
       const p = normalizeProfile(JSON.parse(readFileSync(new URL(f, dir), "utf8")), { origin: "library" });
@@ -257,7 +256,7 @@ describe("Hồ sơ sản phẩm", () => {
     expect(e.stepState("keywords")).toBe("done");
     e.runAll();
     expect(e.stepState("metrics")).toBe("done");
-    const r = e.applyProfile({ format: "chemseg-profile", name: "B", settings: { rankingMetric: "volume" }, segments: [{ name: "Tất cả", include: ["AMMONIUM"] }] });
+    const r = e.applyProfile({ format: "chemseg-profile", name: "B", settings: { rankingMetric: "volume" }, segments: [{ name: "Tất cả", include: ["MAGNESIUM"] }] });
     expect(e.settings.topThreshold).toBe(0.8);       // về mặc định
     expect(e.settings.iqrLog).toBe(false);
     expect(r.invalidatedFrom).toBe("ranking");
@@ -274,7 +273,7 @@ describe("Hồ sơ sản phẩm", () => {
     e.setKeywords(DEF);
     e.loadIndustry(buildIndustryV17(), "ind.xlsx");
     e.updateSettings({ priceBandMin: 50, priceBandMax: 5000, segmentBasis: "industry_first" });
-    const p = e.buildProfile({ name: "Thử nghiệm", product: "NH4Cl", hsCodes: ["282710"] });
+    const p = e.buildProfile({ name: "Thử nghiệm", product: "MgSO4", hsCodes: ["283321"] });
     expect(p.industry.length).toBeGreaterThan(0);
     const e2 = fresh();
     e2.applyProfile(JSON.parse(JSON.stringify(p)));
@@ -300,8 +299,8 @@ describe("Bộ phân khúc soạn trên giao diện", () => {
     expect(() => buildKeywordSet({ segments: [{ name: "A" }, { name: "a" }] })).toThrow(/trùng/);
   });
   it("thử nhanh một mô tả", () => {
-    expect(testKeywords(DEF, "Phân bón NH4Cl 25%").segment).toBe("Phân bón");
-    expect(testKeywords(DEF, "BENZYL DIMETHYL AMMONIUM CHLORIDE").segment).toBe("Ngoài phạm vi sản phẩm");
+    expect(testKeywords(DEF, "Phân bón MgSO4 16%").segment).toBe("Phân bón");
+    expect(testKeywords(DEF, "ZINC SULPHATE MONOHYDRATE").segment).toBe("Ngoài phạm vi sản phẩm");
   });
   it("xem trước độ phủ & gợi ý từ khóa không làm thay đổi kết quả đang có", () => {
     const e = fresh();
@@ -320,9 +319,9 @@ describe("Bộ phân khúc soạn trên giao diện", () => {
 
 describe("Tùy biến theo ý đồ phân khúc", () => {
   const segOf = (e, yr, pred) => { const y = e.years.find((x) => x.year === yr); for (let i = 0; i < y.n; i++) if (pred(y, i)) return [y.cols.Final_Segment[i], y.cols.Segment_Method[i]]; return null; };
-  it("khớp theo mã HS: từ khóa 2827* chỉ có tác dụng khi chọn 'Mô tả + mã HS'", () => {
+  it("khớp theo mã HS: từ khóa 2833* chỉ có tác dụng khi chọn 'Mô tả + mã HS'", () => {
     const e = fresh();
-    e.setKeywords({ segments: [{ name: "Theo HS 2827", include: ["2827*"] }] });
+    e.setKeywords({ segments: [{ name: "Theo HS 2833", include: ["2833*"] }] });
     e.runAll();
     expect(e.results.classify.years["2023"].keyword).toBe(0);
     e.updateSettings({ keywordFields: "desc_hs" });
@@ -360,5 +359,97 @@ describe("Tùy biến theo ý đồ phân khúc", () => {
     expect(e.results.units.sanity.low).toBe(150);
     expect(e.results.units.sanity.mode).toBe("Thủ công");
     expect(e.results.units.years["2024"].insane).toBeGreaterThan(auto);
+  });
+});
+
+/* ═════════ NHIỀU NĂM & NĂM CHƯA TRỌN (vd 2020 – T10/2026) ═════════ */
+import { PERIOD, queryRanking } from "../src/engine/views.js";
+import { parseDate, detectDateOrder } from "../src/engine/numbers.js";
+
+describe("Nhiều năm trong một sheet & năm chưa trọn", () => {
+  let e;
+  beforeAll(() => {
+    e = new Engine();
+    e.addFiles([{ name: "DuLieu_TongHop.xlsx", buffer: buildMultiYearWorkbook() }]);
+  });
+  it("nhận ra sheet chứa 2020–2026 và đề xuất tách theo cột ngày", () => {
+    const s = e.sourceSummary()[0];
+    expect(s.year).toBe("__date");
+    expect(s.include).toBe(true);
+    expect(s.split.years.map((x) => x.year)).toEqual(["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
+    expect(s.split.invalid).toBe(3);
+  });
+  it("tách đúng số dòng từng năm, báo dòng không đọc được ngày", () => {
+    const r = e.confirmSources([]);
+    expect(e.years.map((y) => y.year)).toEqual(["2020", "2021", "2022", "2023", "2024", "2025", "2026"]);
+    expect(e.years.find((y) => y.year === "2021").n).toBe(72);
+    expect(e.years.find((y) => y.year === "2026").n).toBe(60);
+    expect(r.dropped[0].rows).toBe(3);
+    // số dòng Excel gốc được giữ để truy vết
+    expect(e.years[0].rowNum[0]).toBe(2);
+  });
+  it("nhận biết năm chưa đủ 12 tháng và gắn nhãn", () => {
+    e.confirmSchema();
+    const st = e.getState();
+    expect(st.years.find((y) => y.year === "2026").label).toBe("2026 (T1–T10)");
+    expect(st.years.find((y) => y.year === "2025").label).toBe("2025");
+    expect(st.years.find((y) => y.year === "2026").coverage.lastMonth).toBe(10);
+    expect(st.period).toBe("2020 – T10/2026");
+  });
+  it("xếp hạng cả giai đoạn & xuất file có sheet cả giai đoạn", () => {
+    e.setKeywords({ segments: [{ name: "Phân bón", include: ["FERTILIZER"] }, { name: "Công nghiệp", include: ["TECHNICAL GRADE"] }] });
+    e.runAll();
+    expect(e.stepState("metrics")).toBe("done");
+    const per = e.rankings.period.P_ALL;
+    const sumYears = e.years.reduce((a, y) => a + e.rankings.years[y.year].P_ALL.total, 0);
+    expect(per.total).toBeCloseTo(sumYears, 6);
+    const q = queryRanking(e, { year: PERIOD, scope: "P_ALL" });
+    expect(q.rows.length).toBe(4);
+    const wb = XLSX.read(new Uint8Array(X.buildResearchWorkbook(e, "P_ALL").buffer), { type: "array" });
+    expect(wb.SheetNames).toContain("Cả giai đoạn");
+    expect(wb.SheetNames.length).toBe(8);
+    const a = XLSX.read(new Uint8Array(X.buildAuditWorkbook(e).buffer), { type: "array" });
+    const ov = XLSX.utils.sheet_to_json(a.Sheets["01_Tổng quan"], { header: 1 });
+    expect(ov[0]).toContain("2026 (T1–T10)");
+    const guide = XLSX.utils.sheet_to_json(a.Sheets["00_Hướng dẫn"], { header: 1 }).map((r) => r.join(" ")).join("\n");
+    expect(guide).toMatch(/2020 – T10\/2026/);
+  });
+});
+
+describe("Đọc ngày & file CSV", () => {
+  it("xác định thứ tự ngày/tháng theo cả cột", () => {
+    expect(detectDateOrder(["01/13/2024", "02/02/2024"])).toBe("mdy");
+    expect(detectDateOrder(["13/01/2024", "02/02/2024"])).toBe("dmy");
+    expect(parseDate("02/03/2024", "mdy").toISOString().slice(0, 10)).toBe("2024-02-03");
+    expect(parseDate("02/03/2024").toISOString().slice(0, 10)).toBe("2024-03-02");
+    expect(parseDate(20240315).toISOString().slice(0, 10)).toBe("2024-03-15");
+    expect(parseDate("T10/2026").toISOString().slice(0, 10)).toBe("2026-10-01");
+    expect(parseDate(2024)).toBeNull();
+  });
+  it("CSV ngày kiểu Mỹ (tháng/ngày) vẫn tách năm & tính kỳ đúng", () => {
+    const rows = buildMultiYearRows({ from: 2024, toYear: 2025, toMonth: 9, perMonth: 3, dateFormat: "mdy" });
+    const csv = "\uFEFF" + [HEADERS, ...rows].map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const e = new Engine();
+    e.addFiles([{ name: "export.csv", buffer: new TextEncoder().encode(csv).buffer }]);
+    expect(e.sourceSummary()[0].year).toBe("__date");
+    e.confirmSources([]); e.confirmSchema();
+    expect(e.years.map((y) => y.year)).toEqual(["2024", "2025"]);
+    expect(e.getState().years[1].label).toBe("2025 (T1–T9)");
+    e.runStep("quality");
+    expect(e.results.quality.years["2025"].date.order).toBe("mdy");
+    // số trong CSV giữ dạng chữ nhưng vẫn đọc được
+    e.runStep("backfill");
+    expect(e.years[0].cols.TotalValue_Clean[0]).toBeGreaterThan(0);
+  });
+  it("sheet mang tên năm, chỉ vài dòng ngày lệch năm ⇒ giữ theo tên sheet (không tách)", () => {
+    const rows = buildMultiYearRows({ from: 2023, toYear: 2023, toMonth: 12, perMonth: 4 });
+    rows[0][1] = "2022-12-30";
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([HEADERS, ...rows]), "2023");
+    const e = new Engine();
+    e.addFiles([{ name: "x.xlsx", buffer: XLSX.write(wb, { type: "array", bookType: "xlsx" }) }]);
+    const s = e.sourceSummary()[0];
+    expect(s.year).toBe("2023");
+    expect(s.note).toMatch(/tên trang tính/);
   });
 });

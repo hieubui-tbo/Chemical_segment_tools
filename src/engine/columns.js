@@ -10,12 +10,12 @@ const C = (key, vi, step, desc, type = "text") => ({ key, vi, en: key, step, des
 
 function entityCols(P, viP, countryVi) {
   return [
-    C(`${P}_Standardize`, `${viP} - Tên chuẩn hóa`, "entity", `Tên hiển thị của nhóm DN: chọn từ biến thể THẬT có giá trị lớn nhất (ưu tiên tên tiếng Anh), làm sạch hậu tố pháp lý. "[Không xác định]" = placeholder.`),
-    C(`${P}_Entity_ID`, `${viP} - Mã nhóm DN`, "entity", "Mã nhóm thống nhất cho TẤT CẢ các năm; đánh số theo tổng giá trị giảm dần (…0001 = DN lớn nhất)."),
+    C(`${P}_Standardize`, `${viP} - Tên chuẩn hóa`, "entity", `Tên hiển thị của nhóm doanh nghiệp: chọn từ biến thể THẬT có giá trị lớn nhất (ưu tiên tên tiếng Anh), làm sạch hậu tố pháp lý. "[Không xác định]" = giá trị thay thế.`),
+    C(`${P}_Entity_ID`, `${viP} - Mã nhóm doanh nghiệp`, "entity", "Mã nhóm thống nhất cho tất cả các năm; đánh số theo tổng giá trị giảm dần (…0001 = doanh nghiệp lớn nhất)."),
     C(`${P}_Match_Method`, `${viP} - Cách gộp`, "entity", "Cách các biến thể được gộp: Trùng khớp sau chuẩn hóa / Bí danh Việt–Anh / Trùng phần tên riêng / Gần đúng ký tự / Từ điển người dùng / Placeholder."),
     C(`${P}_Confidence`, `${viP} - Độ tin cậy`, "entity", "Chính xác > Cao > Trung bình > Thấp. Trung bình/Thấp luôn được đánh dấu Cần rà soát."),
     C(`${P}_Review_Status`, `${viP} - Trạng thái rà soát`, "entity", "Tự động chấp nhận / Cần rà soát / Đã xác nhận (từ điển) / Loại trừ (không xác định)."),
-    C(`${P}_Risk_Flag`, `${viP} - Cờ rủi ro`, "entity", "Cảnh báo: nhiều DN trong một ô, tên quá ngắn, chi nhánh, có thể là DN logistics, gộp gần đúng…"),
+    C(`${P}_Risk_Flag`, `${viP} - Cờ rủi ro`, "entity", "Cảnh báo: nhiều doanh nghiệp trong một ô, tên quá ngắn, chi nhánh, có thể là doanh nghiệp logistics, gộp gần đúng…"),
     C(`${P}_Country_Std`, `${countryVi} (chuẩn hóa)`, "entity", "Tên quốc gia chuẩn (tiếng Anh) nhận diện từ tên/mã ISO2/ISO3/tên tiếng Việt."),
     C(`${P}_Continent`, `${viP} - Châu lục`, "entity", "Châu lục của quốc gia chuẩn hóa."),
     C(`${P}_Is_SEA`, `${viP} - Thuộc Đông Nam Á`, "entity", "Có / Không (11 nước ASEAN + Timor-Leste)."),
@@ -23,11 +23,11 @@ function entityCols(P, viP, countryVi) {
 }
 
 export const COLUMN_DEFS = [
-  C("_Source_File", "Nguồn - Tên file", "upload", "File gốc chứa dòng dữ liệu."),
-  C("_Source_Sheet", "Nguồn - Tên sheet", "upload", "Sheet gốc chứa dòng dữ liệu."),
-  C("_Source_Row", "Nguồn - Dòng Excel", "upload", "Số dòng trong file Excel gốc — dùng để truy vết.", "int"),
+  C("_Source_File", "Nguồn - Tên file", "upload", "Tệp gốc chứa dòng dữ liệu."),
+  C("_Source_Sheet", "Nguồn - Tên trang tính", "upload", "Sheet gốc chứa dòng dữ liệu."),
+  C("_Source_Row", "Nguồn - Dòng Excel", "upload", "Số dòng trong tệp Excel gốc — dùng để truy vết.", "int"),
 
-  C("Date_Clean", "Ngày (chuẩn hóa)", "quality", "Ngày giao dịch đọc được (hỗ trợ ngày Excel, dd/mm/yyyy, yyyy-mm-dd).", "date"),
+  C("Date_Clean", "Ngày (chuẩn hóa)", "quality", "Ngày giao dịch đọc được: ngày Excel, dd/mm/yyyy hoặc mm/dd/yyyy (tự nhận theo cả cột), yyyy-mm-dd, yyyymmdd, mm/yyyy, T10/2026.", "date"),
   C("Duplicate_Flag", "Dòng trùng lặp", "quality", "\"Trùng lặp\" nếu dòng giống hệt một dòng trước đó trên mọi trường đã ánh xạ (cùng năm)."),
 
   C("UnitPrice_Clean", "Đơn giá (sạch)", "backfill", "Đơn giá đọc được (> 0); nếu thiếu và có Trị giá + Lượng thì = Trị giá / Lượng.", "num"),
@@ -43,19 +43,19 @@ export const COLUMN_DEFS = [
   C("Conversion_Factor", "Hệ số quy đổi (tấn/đơn vị)", "units", "Số tấn tương ứng 1 đơn vị gốc (từ từ điển, người dùng nhập, hoặc suy luận khối lượng bao bì từ mô tả).", "num"),
   C("Quantity_MT", "Lượng (tấn)", "units", "= Lượng (sạch) × Hệ số quy đổi.", "num"),
   C("UnitPrice_per_MT", "Đơn giá (USD/tấn)", "units", "= Trị giá (sạch) / Lượng (tấn); nếu thiếu trị giá thì = Đơn giá (sạch) / Hệ số.", "num"),
-  C("Price_Sanity", "Kiểm tra giá/tấn", "units", "Giá/tấn < 1/50 hoặc > 2.000 lần giá tham chiếu (trung vị có trọng số trị giá) ⇒ phi lý, nghi sai đơn vị (vd: lượng KG nhưng ghi TNE). Bị loại khỏi IQR và chỉ số."),
+  C("Price_Sanity", "Kiểm tra giá/tấn", "units", "Giá/tấn < 1/50 hoặc > 2.000 lần giá tham chiếu (trung vị có trọng số trị giá) ⇒ phi lý, nghi sai đơn vị (ví dụ: lượng KG nhưng ghi TNE). Bị loại khỏi IQR và chỉ số."),
 
   ...entityCols("Purchaser", "DN mua", "Nước nhập khẩu"),
-  ...entityCols("Supplier", "DN bán", "Nước xuất xứ"),
-  C("Cross_Source_Dup", "Nghi trùng giữa các nguồn", "entity", "Giao dịch có cùng năm, cùng lượng, cùng trị giá (±1 USD), cùng DN mua hoặc DN bán, ngày lệch ≤ 10 ngày nhưng đến từ NGUỒN DỮ LIỆU KHÁC — dòng được giữ là bản ghi của nước nhập khẩu (nếu có)."),
+  ...entityCols("Supplier", "Doanh nghiệp bán", "Nước xuất xứ"),
+  C("Cross_Source_Dup", "Nghi trùng giữa các nguồn", "entity", "Giao dịch có cùng năm, cùng lượng, cùng trị giá (±1 USD), cùng doanh nghiệp mua hoặc doanh nghiệp bán, ngày lệch ≤ 10 ngày nhưng đến từ NGUỒN DỮ LIỆU KHÁC — dòng được giữ là bản ghi của nước nhập khẩu (nếu có)."),
 
   C("Row_Ranking_Value", "Giá trị xếp hạng (dòng)", "ranking", "= Trị giá (sạch) (hoặc Lượng tấn nếu chọn xếp hạng theo khối lượng); dòng nghi trùng nguồn khác không được tính.", "num"),
-  C("Research_Scope_Flag", "Phạm vi nghiên cứu (DN mua)", "ranking", "Vị trí của DN mua trong xếp hạng toàn cầu của năm: Thuộc Top / Ngoài Top / DN không xác định / Không tính được giá trị."),
-  C("Purchaser_Top_Flag", "DN mua thuộc Top", "ranking", "Có nếu DN mua thuộc nhóm Top X% giá trị toàn cầu của năm."),
-  C("Supplier_Top_Flag", "DN bán thuộc Top", "ranking", "Có nếu DN bán thuộc nhóm Top X% giá trị toàn cầu của năm."),
+  C("Research_Scope_Flag", "Phạm vi nghiên cứu (doanh nghiệp mua)", "ranking", "Vị trí của doanh nghiệp mua trong xếp hạng toàn cầu của năm: Thuộc Top / Ngoài Top / doanh nghiệp không xác định / Không tính được giá trị."),
+  C("Purchaser_Top_Flag", "Doanh nghiệp mua thuộc Top", "ranking", "Có nếu doanh nghiệp mua thuộc nhóm Top X% giá trị toàn cầu của năm."),
+  C("Supplier_Top_Flag", "Doanh nghiệp bán thuộc Top", "ranking", "Có nếu doanh nghiệp bán thuộc nhóm Top X% giá trị toàn cầu của năm."),
 
-  C("Industry", "Ngành", "industry", "Ngành của DN mua lấy từ file Industry Master."),
-  C("Industry_Segment", "Phân khúc ngành", "industry", "Phân khúc ngành của DN mua lấy từ file Industry Master (dùng làm phương án dự phòng khi phân loại)."),
+  C("Industry", "Ngành", "industry", "Ngành của doanh nghiệp mua lấy từ tệp Industry Master."),
+  C("Industry_Segment", "Phân khúc ngành", "industry", "Phân khúc ngành của doanh nghiệp mua lấy từ tệp Industry Master (dùng làm phương án dự phòng khi phân loại)."),
   C("Industry_Match", "Cách khớp ngành", "industry", "Khớp theo tên chuẩn hóa / Khớp theo tên lõi / Không khớp."),
 
   C("Keyword_Segment", "Phân khúc theo từ khóa", "classify", "Phân khúc có nhiều từ khóa khớp nhất trong mô tả hàng hóa."),
@@ -69,7 +69,7 @@ export const COLUMN_DEFS = [
   C("IQR_Lower", "Ngưỡng dưới IQR", "iqr", "Q1 − k × IQR của nhóm (Năm × Phân khúc). Tứ phân vị tính như Excel QUARTILE.INC.", "num"),
   C("IQR_Upper", "Ngưỡng trên IQR", "iqr", "Q3 + k × IQR của nhóm (Năm × Phân khúc).", "num"),
 
-  C("Final_Included", "Giữ lại sau lọc", "metrics", "Có / Không — theo quy tắc loại ngoại lai đã chọn ở bước 13."),
+  C("Final_Included", "Giữ lại sau lọc", "metrics", "Có / Không — theo quy tắc loại giá trị ngoại lai đã chọn ở bước 13."),
   C("Exclusion_Reason", "Lý do loại", "metrics", "Lý do dòng bị loại khỏi số liệu sau lọc."),
 ];
 

@@ -1,10 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, Trash2, CheckCircle2, Download, FolderOpen, Plus, Wand2, Save, AlertTriangle, Package, PlayCircle, Settings2 } from "lucide-react";
+import { FileSpreadsheet, Trash2, CheckCircle2, Download, FolderOpen, Plus, Wand2, Save, AlertTriangle, Package, Settings2 } from "lucide-react";
 import { useApp } from "../ui/store.jsx";
 import { Card, Kpi, Btn, Pill, Callout, Field, Toggle, Seg, DropZone, Table, StepHero, RunBar, Empty, Bar } from "../ui/components.jsx";
 import { n, pct, usd, price } from "../ui/format.js";
 import { PHASES } from "../engine/constants.js";
+import { UNIT_KIND } from "../engine/dict/units.js";
 import { profileLine } from "../ui/ProfileManager.jsx";
+
+const BY_DATE = "__date";
+/** Ô chọn năm của một nguồn: nhập năm, hoặc "tách theo cột ngày" khi sheet chứa nhiều năm. */
+function YearCell({ s, value, onChange }) {
+  const [manual, setManual] = useState(false);
+  if (!s.split) return <input className="input" style={{ width: 90 }} value={value || ""} placeholder="ví dụ: 2024" onChange={(e) => onChange(e.target.value)} />;
+  const ys = s.split.years;
+  const known = value === BY_DATE || ys.some((x) => x.year === value);
+  if (manual || (value && !known)) return <input className="input" style={{ width: 90 }} autoFocus value={value === BY_DATE ? "" : value || ""} placeholder="ví dụ: 2024" onBlur={() => { if (!value) setManual(false); }} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <div>
+      <select className="select" style={{ width: 300, padding: "6px 8px" }} value={value || ""} onChange={(e) => { if (e.target.value === "__manual") { setManual(true); onChange(""); } else onChange(e.target.value); }}>
+        <option value="" disabled>— chọn —</option>
+        <option value={BY_DATE}>Tách theo cột “{s.split.header}” ({ys[0]?.year}–{ys[ys.length - 1]?.year})</option>
+        {ys.map((x) => <option key={x.year} value={x.year}>Cả trang tính là năm {x.year}</option>)}
+        <option value="__manual">Nhập năm khác…</option>
+      </select>
+      {value === BY_DATE && <div className="small muted" style={{ marginTop: 4 }}>{ys.map((x) => `${x.year}: ${n(x.rows)}`).join(" · ")}{s.split.invalid ? ` · không đọc được ngày: ${n(s.split.invalid)}` : ""}</div>}
+    </div>
+  );
+}
 
 /** Thanh chọn hồ sơ sản phẩm (đầu bước 1). */
 function ProfileBar() {
@@ -19,8 +41,8 @@ function ProfileBar() {
       tools={<Btn kind="ghost" size="sm" icon={Settings2} onClick={() => setProfileOpen(true)}>Quản lý hồ sơ</Btn>}>
       <div className="row" style={{ alignItems: "flex-start" }}>
         <select className="select" style={{ minWidth: 300, flex: "0 1 420px" }} value={all.some((x) => `${x._origin}:${x.id}` === value) ? value : ""} onChange={(e) => pick(e.target.value)}>
-          <option value="" disabled>{cur ? `${cur.name} (chưa lưu)` : "— Chọn hồ sơ —"}</option>
-          <optgroup label="Thư viện chung">{library.map((p) => <option key={"l" + p.id} value={`library:${p.id}`}>{p.name}</option>)}</optgroup>
+          <option value="" disabled>{cur ? `${cur.name} (chưa lưu)` : all.length ? "— Chọn hồ sơ —" : "— Chưa có hồ sơ nào —"}</option>
+          {library.length > 0 && <optgroup label="Thư viện chung">{library.map((p) => <option key={"l" + p.id} value={`library:${p.id}`}>{p.name}</option>)}</optgroup>}
           {localProfiles.length > 0 && <optgroup label="Trên máy này">{localProfiles.map((p) => <option key={"m" + p.id} value={`local:${p.id}`}>{p.name}</option>)}</optgroup>}
         </select>
         <div style={{ flex: 1, minWidth: 240 }}>
@@ -29,7 +51,7 @@ function ProfileBar() {
               <div className="small"><b>{cur.name}</b>{cur.product ? ` · ${cur.product}` : ""}{cur.hsCodes?.length ? ` · HS ${cur.hsCodes.join(", ")}` : ""} {cur.modified && <Pill tone="warn">đã chỉnh — chưa lưu</Pill>}</div>
               <div className="small muted">{profileLine(cur)}</div>
             </>
-          ) : <div className="small muted">Chưa chọn hồ sơ — đang dùng thiết lập mặc định. Sản phẩm mới? Mở <b>Quản lý hồ sơ</b> → <b>Tạo hồ sơ trống</b> hoặc <b>Nhân bản</b> hồ sơ mẫu.</div>}
+          ) : <div className="small muted">Chưa chọn hồ sơ — đang dùng thiết lập mặc định. Bạn có thể xử lý luôn, hoặc mở <b>Quản lý hồ sơ</b> → <b>Tạo hồ sơ trống</b> / <b>Nhập tệp hồ sơ</b> để lưu cấu hình của sản phẩm mình dùng cho lần sau.</div>}
         </div>
       </div>
     </Card>
@@ -50,7 +72,7 @@ export function UploadStep() {
   const addFiles = async (list) => {
     const fl = await Promise.all(list.map(async (f) => ({ name: f.name, buffer: await f.arrayBuffer() })));
     await run(`Đang đọc ${fl.length} file`, "addFiles", { files: fl }, fl.map((f) => f.buffer), {
-      success: "Đã đọc file", successDesc: (r) => `${r.sources.length} sheet được nhận diện${r.errors.length ? ` · ${r.errors.length} file lỗi` : ""}`,
+      success: "Đã đọc file", successDesc: (r) => `${r.sources.length} trang tính được nhận diện${r.errors.length ? ` · ${r.errors.length} tệp lỗi` : ""}`,
     });
   };
   const val = (s, k) => (edits[s.id] && edits[s.id][k] !== undefined ? edits[s.id][k] : s[k]);
@@ -60,16 +82,9 @@ export function UploadStep() {
     const r = await run("Đang gộp dữ liệu theo năm", "confirmSources", { updates }, [], { success: "Đã xác nhận nguồn dữ liệu" });
     if (r) goNext("upload");
   };
-  const loadDemo = async () => {
-    try {
-      const names = ["Du_lieu_mau_tong_hop_2023.xlsx", "Du_lieu_mau_2024.xlsx"];
-      const fl = await Promise.all(names.map(async (name) => { const r = await fetch("/mau/" + name); if (!r.ok) throw new Error(name); return { name, buffer: await r.arrayBuffer() }; }));
-      await run("Đang đọc dữ liệu mẫu", "addFiles", { files: fl }, fl.map((f) => f.buffer), { success: "Đã nạp dữ liệu mẫu", successDesc: "Dữ liệu tổng hợp có cài sẵn các lỗi thường gặp — bấm Xác nhận rồi Chạy tự động để xem kết quả." });
-    } catch (e) { /* bỏ qua: file mẫu không có */ }
-  };
   const chosen = sources.filter((s) => val(s, "include"));
   const totalRows = chosen.reduce((a, s) => a + s.nRows, 0);
-  const years = [...new Set(chosen.map((s) => val(s, "year")).filter(Boolean))].sort();
+  const years = [...new Set(chosen.flatMap((s) => (val(s, "year") === BY_DATE ? (s.split?.years || []).map((x) => x.year) : [val(s, "year")])).filter(Boolean))].sort();
 
   return (
     <>
@@ -77,12 +92,11 @@ export function UploadStep() {
       <ProfileBar />
       {!sources.length ? (
         <div className="welcome">
-          <Card title="Bắt đầu một phiên xử lý" sub="Kéo thả một hoặc nhiều file — mỗi năm một sheet, hoặc mỗi năm một file.">
+          <Card title="Bắt đầu một phiên xử lý" sub="Kéo thả một hoặc nhiều tệp — mỗi năm một trang tính, hoặc mỗi năm một file.">
             <DropZone onFiles={addFiles} accept={ACCEPT} multiple color="var(--phase-A)" icon={FileSpreadsheet}
-              title="Kéo thả file dữ liệu vào đây hoặc bấm để chọn" sub="Hỗ trợ .xlsx · .xls · .xlsb · .csv — có thể chọn nhiều file cùng lúc" />
+              title="Kéo thả tệp dữ liệu vào đây hoặc bấm để chọn" sub="Hỗ trợ .xlsx · .xls · .xlsb · .csv — có thể chọn nhiều tệp cùng lúc" />
             <div className="row mt16">
-              <Btn kind="ghost" size="sm" icon={Download} onClick={() => download("Tạo file mẫu", "exportTemplate", { kind: "input" })}>Tải file mẫu dữ liệu đầu vào</Btn>
-              <Btn kind="soft" size="sm" icon={PlayCircle} onClick={loadDemo}>Thử với dữ liệu mẫu</Btn>
+              <Btn kind="ghost" size="sm" icon={Download} onClick={() => download("Tạo tệp mẫu", "exportTemplate", { kind: "input" })}>Tải tệp mẫu dữ liệu đầu vào</Btn>
               <span className="muted small">Dữ liệu chỉ xử lý trong trình duyệt của bạn — không gửi lên máy chủ.</span>
             </div>
           </Card>
@@ -91,23 +105,23 @@ export function UploadStep() {
               {PHASES.map((p, i) => (
                 <div key={p.id} className="flow-item">
                   <span className="flow-badge" style={{ background: `linear-gradient(150deg, var(--phase-${p.id}), var(--phase-${p.id}-d))` }}>{p.id}</span>
-                  <div><b>{p.label}</b><span>{["Bước 1–3: Tải dữ liệu · Ánh xạ cột · Kiểm tra chất lượng", "Bước 4–6: Bổ sung số liệu · Đối chiếu giá trị · Quy đổi về tấn", "Bước 7–9: Chuẩn hóa doanh nghiệp · Xếp hạng Top 80% · Gán ngành", "Bước 10–13: Bộ từ khóa · Phân loại · Lọc ngoại lai IQR · Chỉ số phân khúc", "Bước 14: Báo cáo kiểm toán & dữ liệu chi tiết từng năm"][i]}</span></div>
+                  <div><b>{p.label}</b><span>{["Bước 1–3: Tải dữ liệu · Ánh xạ cột · Kiểm tra chất lượng", "Bước 4–6: Bổ sung số liệu · Đối chiếu giá trị · Quy đổi về tấn", "Bước 7–9: Chuẩn hóa doanh nghiệp · Xếp hạng Top 80% · Gán ngành", "Bước 10–13: Bộ từ khóa · Phân loại · Lọc giá trị ngoại lai IQR · Chỉ số phân khúc", "Bước 14: Báo cáo kiểm toán & dữ liệu chi tiết từng năm"][i]}</span></div>
                 </div>
               ))}
             </div>
-            <Callout kind="info" title="Mẹo:">Mọi điều chỉnh (phân khúc, từ khóa, hệ số đơn vị, khoảng giá, quy tắc lọc, từ điển DN…) có thể lưu vào <b>Hồ sơ sản phẩm</b> để lần sau — hoặc đồng nghiệp — dùng lại ngay, không phải thiết lập lại.</Callout>
+            <Callout kind="info" title="Mẹo:">Mọi điều chỉnh (phân khúc, từ khóa, hệ số đơn vị, khoảng giá, quy tắc lọc, từ điển doanh nghiệp…) có thể lưu vào <b>Hồ sơ sản phẩm</b> để lần sau — hoặc đồng nghiệp — dùng lại ngay, không phải thiết lập lại.</Callout>
           </Card>
         </div>
       ) : (
         <>
-          <Card title={`Nguồn dữ liệu đã đọc (${files.length} file · ${sources.length} sheet)`} sub="Kiểm tra năm của từng sheet. Bỏ chọn sheet không phải dữ liệu giao dịch."
+          <Card title={`Nguồn dữ liệu đã đọc (${files.length} tệp · ${sources.length} trang tính)`} sub="Kiểm tra năm của từng trang tính. Bỏ chọn trang tính không phải dữ liệu giao dịch."
             tools={<DropZone compact onFiles={addFiles} accept={ACCEPT} multiple color="var(--phase-A)" icon={Plus} title="Thêm file" />}>
             <Table
               maxHeight={420}
               columns={[
                 { key: "inc", label: "Dùng", render: (s) => <Toggle checked={val(s, "include")} onChange={(v) => setVal(s, "include", v)} color="var(--phase-A)" /> },
                 { key: "file", label: "File › Sheet", render: (s) => <div><b>{s.sheet}</b><div className="muted small">{s.file}</div></div> },
-                { key: "year", label: "Năm", render: (s) => <input className="input" style={{ width: 90 }} value={val(s, "year") || ""} placeholder="vd 2024" onChange={(e) => setVal(s, "year", e.target.value)} /> },
+                { key: "year", label: "Năm", render: (s) => <YearCell s={s} value={val(s, "year")} onChange={(v) => setVal(s, "year", v)} /> },
                 { key: "rows", label: "Số dòng", num: true, render: (s) => n(s.nRows) },
                 { key: "cols", label: "Số cột", num: true, render: (s) => n(s.nCols) },
                 { key: "hdr", label: "Dòng tiêu đề", num: true, render: (s) => s.headerRowNo || "—" },
@@ -124,9 +138,12 @@ export function UploadStep() {
             <div className="note">Sẽ xử lý <b>{n(totalRows)}</b> dòng · {years.length} năm: {years.join(", ") || "—"}</div>
           </div>
           {done && (
-            <div className="kpis">
-              {state.years.map((y) => <Kpi key={y.year} label={`Năm ${y.year}`} value={n(y.rows)} sub="dòng dữ liệu" color="var(--phase-A)" />)}
-            </div>
+            <>
+              {state.results?.upload?.dropped?.length > 0 && <Callout kind="warn" title="Dòng không đọc được ngày (không đưa vào xử lý):">{state.results.upload.dropped.map((d) => `${d.file} › ${d.sheet}: ${n(d.rows)} dòng (cột “${d.column}”)`).join(" · ")}. Kiểm tra lại cột ngày trong tệp nếu số dòng này đáng kể.</Callout>}
+              <div className="kpis">
+                {state.years.map((y) => <Kpi key={y.year} label={`Năm ${y.label}`} value={n(y.rows)} sub={y.coverage ? `${y.coverage.from} → ${y.coverage.to}` : "dòng dữ liệu"} color={y.coverage?.partial ? "var(--warn)" : "var(--phase-A)"} />)}
+              </div>
+            </>
           )}
         </>
       )}
@@ -218,8 +235,31 @@ export function SchemaStep() {
 
 /* ═════════ BƯỚC 3 — CHẤT LƯỢNG ═════════ */
 const NUM_LABEL = { unitPrice: "Đơn giá", totalValue: "Trị giá", quantity: "Lượng" };
+const DATE_ORDER_LABEL = { dmy: "dd/mm (ngày trước)", mdy: "mm/dd (tháng trước)" };
+const vnDay = (iso) => iso.split("-").reverse().join("/");
+/** Bảng ngày giao dịch & kỳ dữ liệu từng năm (bước 3). */
+function DateCoverageCard({ R, years }) {
+  const { yLabel } = useApp();
+  const rows = years.filter((yr) => R.years[yr]?.date).map((yr) => ({ __key: yr, yr, ...R.years[yr].date, cov: R.years[yr].coverage }));
+  if (!rows.length) return null;
+  return (
+    <Card title="Ngày giao dịch & kỳ dữ liệu" sub="Kỳ dữ liệu lấy từ cột Ngày. Năm chưa đủ 12 tháng được gắn nhãn (ví dụ: “2026 (T1–T10)”) ở mọi bước và trong báo cáo.">
+      <Table columns={[
+        { key: "yr", label: "Năm", render: (r) => <b style={{ whiteSpace: "nowrap" }}>{yLabel(r.yr)}</b> },
+        { key: "parsed", label: "Đọc được", num: true, render: (r) => n(r.parsed) },
+        { key: "unparsed", label: "Không đọc được", num: true, render: (r) => (r.unparsed ? <Pill tone="warn">{n(r.unparsed)}</Pill> : 0) },
+        { key: "yearMismatch", label: "Khác năm của trang tính", num: true, render: (r) => (r.yearMismatch ? <Pill tone="warn">{n(r.yearMismatch)}</Pill> : 0) },
+        { key: "order", label: "Thứ tự ngày", render: (r) => <span style={{ whiteSpace: "nowrap" }}>{DATE_ORDER_LABEL[r.order] || r.order}</span> },
+        { key: "range", label: "Từ → đến", render: (r) => (r.cov ? <span style={{ whiteSpace: "nowrap" }}>{vnDay(r.cov.from)} → {vnDay(r.cov.to)}</span> : "—") },
+        { key: "months", label: "Số tháng", num: true, render: (r) => (r.cov ? r.cov.monthsWithData : "—") },
+        { key: "status", label: "Trạng thái", render: (r) => (!r.cov ? <Pill tone="mute">Không có ngày</Pill> : r.cov.partial ? <Pill tone="warn">Chưa đủ 12 tháng</Pill> : r.cov.monthsWithData < 12 ? <Pill tone="warn">Thiếu tháng giữa năm</Pill> : <Pill tone="ok">Đủ 12 tháng</Pill>) },
+      ]} rows={rows} />
+    </Card>
+  );
+}
+
 export function QualityStep() {
-  const { state } = useApp();
+  const { state, yLabel } = useApp();
   const R = state?.results?.quality;
   const years = state?.years?.map((y) => y.year) || [];
   return (
@@ -229,9 +269,10 @@ export function QualityStep() {
       {R && (
         <>
           <div className="kpis mb12">
-            {years.map((yr) => { const q = R.years[yr]; return <Kpi key={yr} color={q.coreCompletePct > 0.8 ? "var(--ok)" : q.coreCompletePct > 0.5 ? "var(--warn)" : "var(--bad)"} label={`Năm ${yr}: dòng đủ dữ liệu cốt lõi`} value={pct(q.coreCompletePct, 0)} sub={`${n(q.coreComplete)} / ${n(q.rows)} dòng · ${n(q.duplicates)} dòng trùng`} />; })}
+            {years.map((yr) => { const q = R.years[yr]; return <Kpi key={yr} color={q.coreCompletePct > 0.8 ? "var(--ok)" : q.coreCompletePct > 0.5 ? "var(--warn)" : "var(--bad)"} label={`Năm ${yLabel(yr)}: dòng đủ dữ liệu cốt lõi`} value={pct(q.coreCompletePct, 0)} sub={`${n(q.coreComplete)} / ${n(q.rows)} dòng · ${n(q.duplicates)} dòng trùng`} />; })}
           </div>
-          {years.some((yr) => R.years[yr].coreCompletePct < 0.6) && <Callout kind="warn" title="Nhiều dòng thiếu giá trị hoặc lượng.">Thường gặp ở nguồn vận đơn (BL) không ghi trị giá. Các dòng này vẫn được chuẩn hóa DN và phân loại, nhưng không tham gia xếp hạng theo trị giá và chỉ số giá.</Callout>}
+          {years.some((yr) => R.years[yr].coreCompletePct < 0.6) && <Callout kind="warn" title="Nhiều dòng thiếu giá trị hoặc lượng.">Thường gặp ở nguồn vận đơn (BL) không ghi trị giá. Các dòng này vẫn được chuẩn hóa doanh nghiệp và phân loại, nhưng không tham gia xếp hạng theo trị giá và chỉ số giá.</Callout>}
+          <DateCoverageCard R={R} years={years} />
           <Card title="Các cột số" sub="Hợp lệ = số > 0. Số lưu dạng chữ có định dạng (1,234.5) vẫn đọc được.">
             <Table columns={[
               { key: "y", label: "Năm" }, { key: "f", label: "Trường" },
@@ -246,10 +287,10 @@ export function QualityStep() {
               <Table maxHeight={360} columns={[
                 { key: "unit", label: "Đơn vị" }, { key: "examples", label: "Ví dụ gốc", className: "clip" },
                 { key: "count", label: "Số dòng", num: true, render: (r) => n(r.count) },
-                { key: "kind", label: "Trạng thái", render: (r) => <Pill tone={r.kind === "Khối lượng" ? "ok" : r.kind === "Mơ hồ" ? "warn" : r.kind === "Chưa có trong từ điển" ? "bad" : "mute"}>{r.kind}</Pill> },
+                { key: "kind", label: "Trạng thái", render: (r) => <Pill tone={r.kind === UNIT_KIND.MASS ? "ok" : r.kind === UNIT_KIND.AMBIGUOUS ? "warn" : r.kind === UNIT_KIND.UNKNOWN ? "bad" : "mute"}>{r.kind}</Pill> },
               ]} rows={R.units.slice(0, 80)} />
             </Card>
-            <Card title="Quốc gia chưa nhận diện" sub="Sẽ hiển thị nguyên văn; không ảnh hưởng gộp DN nhưng không xếp được châu lục.">
+            <Card title="Quốc gia chưa nhận diện" sub="Sẽ hiển thị nguyên văn; không ảnh hưởng gộp doanh nghiệp nhưng không xếp được châu lục.">
               {R.countriesUnmapped.length ? (
                 <Table maxHeight={360} columns={[{ key: "value", label: "Giá trị gốc" }, { key: "field", label: "Cột" }, { key: "count", label: "Số dòng", num: true, render: (r) => n(r.count) }]} rows={R.countriesUnmapped} />
               ) : <Empty icon={CheckCircle2} title="Tất cả quốc gia đều nhận diện được" />}
@@ -319,7 +360,7 @@ export function ValidateStep() {
     <>
       <StepHero id="validate" />
       <Card title="Thiết lập">
-        <Field label="Ngưỡng lệch cho phép" hint="Dòng có |Đơn giá × Lượng − Trị giá| / Trị giá lớn hơn ngưỡng sẽ bị đánh dấu. V17 dùng 30%.">
+        <Field label="Ngưỡng lệch cho phép" hint="Dòng có |Đơn giá × Lượng − Trị giá| / Trị giá lớn hơn ngưỡng sẽ bị đánh dấu. bản cũ dùng 30%.">
           <Seg value={tol} onChange={set} options={[0.05, 0.1, 0.2, 0.3, 0.5].map((v) => ({ value: v, label: Math.round(v * 100) + "%" }))} />
         </Field>
       </Card>
@@ -370,7 +411,7 @@ function PriceBand({ S, run }) {
         <Btn size="sm" kind="soft" disabled={!dirty || bad} onClick={() => run("Cập nhật khoảng giá", "updateSettings", { partial: { priceBandMin: nLo, priceBandMax: nHi } })}>Áp dụng</Btn>
         {(S.priceBandMin > 0 || S.priceBandMax > 0) && <Btn size="sm" kind="ghost" onClick={() => run("Cập nhật khoảng giá", "updateSettings", { partial: { priceBandMin: 0, priceBandMax: 0 } })}>Về tự động</Btn>}
       </div>
-      <div className="hint mt8">{bad ? <span style={{ color: "var(--bad)" }}>Giá tối thiểu phải nhỏ hơn giá tối đa.</span> : "Dùng khi biết rõ mặt bằng giá của sản phẩm (vd: phân bón 80–2.000, hóa chất tinh khiết có thể tới hàng chục nghìn USD/t). Để trống = tự động. Giá trị này được lưu trong hồ sơ sản phẩm."}</div>
+      <div className="hint mt8">{bad ? <span style={{ color: "var(--bad)" }}>Giá tối thiểu phải nhỏ hơn giá tối đa.</span> : "Dùng khi biết rõ mặt bằng giá của sản phẩm (ví dụ: phân bón 80–2.000, hóa chất tinh khiết có thể tới hàng chục nghìn USD/t). Để trống = tự động. Giá trị này được lưu trong hồ sơ sản phẩm."}</div>
     </div>
   );
 }
@@ -417,11 +458,11 @@ export function UnitsStep() {
       <StepHero id="units" />
       <Card title="Thiết lập">
         <Toggle checked={S.inferPackageWeight} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { inferPackageWeight: v } })} color="var(--phase-B)"
-          label="Suy luận khối lượng bao bì từ mô tả (vd: BAG + “25 KG BAG” ⇒ 0,025 tấn/bao)" />
+          label="Suy luận khối lượng bao bì từ mô tả (ví dụ: BAG + “25 KG BAG” ⇒ 0,025 tấn/bao)" />
         <div className="hint mt8">Chỉ áp dụng cho dòng có trị giá và khi giá ngụ ý hợp lý. Dòng suy luận được ghi rõ trong cột Trạng thái quy đổi.</div>
         <div className="mt12"><Toggle checked={S.priceSanityCheck} onChange={(v) => run("Cập nhật", "updateSettings", { partial: { priceSanityCheck: v } })} color="var(--phase-B)"
           label="Đánh dấu giá/tấn phi lý (nghi sai đơn vị) và loại khỏi IQR & chỉ số" /></div>
-        <div className="hint mt8">Mặc định tự tính: dưới 1/50 hoặc trên 2.000 lần giá tham chiếu. Ví dụ thật: lượng 506.000 ghi “TNE” (thực chất là kg) ⇒ giá 0,11 USD/tấn.</div>
+        <div className="hint mt8">Mặc định tự tính: dưới 1/50 hoặc trên 2.000 lần giá tham chiếu. Ví dụ: lượng 500.000 ghi “TNE” nhưng thực chất là kg ⇒ giá chỉ ~0,1 USD/tấn.</div>
         <PriceBand S={S} run={run} />
       </Card>
       <RunBar id="units" label="Chạy quy đổi đơn vị" note="Chạy một lần để xem bảng đơn vị, chỉnh hệ số nếu cần rồi chạy lại." />
@@ -436,12 +477,12 @@ export function UnitsStep() {
             <Kpi label="Giá/tấn phi lý – nghi sai đơn vị" value={n(tot.insane)} color="var(--bad)" sub={R.sanity ? `ngoài ${price(R.sanity.low)} – ${Number.isFinite(R.sanity.high) ? price(R.sanity.high) : "∞"} USD/t · ${R.sanity.mode || "tự động"}` : "đang tắt kiểm tra"} />
             <Kpi label="Giá tham chiếu" value={price(R.refPrice)} sub="USD/tấn — trung vị có trọng số trị giá" color="var(--text-3)" />
           </div>
-          <Card title="Bảng hệ số quy đổi" sub="Sắp xếp theo trị giá. Chọn hệ số cho đơn vị chưa có, rồi bấm Lưu & chạy lại."
+          <Card title="Bảng hệ số quy đổi" sub="Sắp xếp theo trị giá. Chọn hệ số cho đơn vị chưa có, rồi chọn Lưu & chạy lại."
             tools={<>{nSug > 0 && <Btn kind="soft" size="sm" icon={Wand2} onClick={applySuggestions}>Áp dụng {nSug} gợi ý</Btn>}<Btn kind="primary" size="sm" color="var(--phase-B)" icon={Save} disabled={!dirty} onClick={save}>Lưu & chạy lại</Btn></>}>
             {dirty && <Callout kind="warn">Có thay đổi chưa áp dụng — bấm <b>Lưu & chạy lại</b>.</Callout>}
             <Table maxHeight={520} columns={[
               { key: "unit", label: "Đơn vị", render: (t) => <div><b>{t.unit}</b><div className="muted small clip" style={{ maxWidth: 180 }}>{t.examples}</div></div> },
-              { key: "kind", label: "Loại", render: (t) => <Pill tone={t.kind === "Khối lượng" ? "ok" : t.kind === "Mơ hồ" ? "warn" : t.kind === "Chưa có trong từ điển" ? "bad" : "mute"}>{t.kind}</Pill> },
+              { key: "kind", label: "Loại", render: (t) => <Pill tone={t.kind === UNIT_KIND.MASS ? "ok" : t.kind === UNIT_KIND.AMBIGUOUS ? "warn" : t.kind === UNIT_KIND.UNKNOWN ? "bad" : "mute"}>{t.kind}</Pill> },
               { key: "rows", label: "Số dòng", num: true, render: (t) => n(t.rows) },
               { key: "rowsPriced", label: "Có trị giá", num: true, render: (t) => n(t.rowsPriced) },
               { key: "value", label: "Trị giá", num: true, render: (t) => usd(t.value) },

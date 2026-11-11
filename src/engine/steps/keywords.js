@@ -114,11 +114,17 @@ function prep(k) {
   return e;
 }
 
+/** Nhãn độ tin cậy phân loại theo từ khóa (cột "Độ tin cậy từ khóa"). */
+export const KW_CONF = {
+  EXCLUDED: "Khớp từ khóa loại trừ", SINGLE: "Một phân khúc", CLEAR: "Nhiều phân khúc – rõ ràng",
+  TIE_LEN: "Hòa – chọn từ khóa dài hơn (nên rà soát)", TIE_ORDER: "Hòa – chọn theo thứ tự cột (nên rà soát)",
+};
+
 function decide(hits, segs) {
-  if (!hits.length) return { seg: null, detail: "", conf: "", hits };
+  if (!hits.length) return { seg: null, detail: "", conf: "", tie: false, hits };
   if (hits.some((h) => h.type === "glob")) {
     const g = hits.filter((h) => h.type === "glob").map((h) => h.raw);
-    return { seg: OUT_OF_SCOPE, detail: "LOẠI TRỪ(" + [...new Set(g)].join("+") + ")", conf: "Khớp từ khóa loại trừ", hits };
+    return { seg: OUT_OF_SCOPE, detail: "LOẠI TRỪ(" + [...new Set(g)].join("+") + ")", conf: KW_CONF.EXCLUDED, tie: false, hits };
   }
   const per = new Map();
   for (const h of hits) {
@@ -128,16 +134,16 @@ function decide(hits, segs) {
   }
   const cands = [];
   per.forEach((p, idx) => { if (!p.exc && p.inc.size) cands.push({ idx, count: p.inc.size, maxLen: Math.max(...[...p.inc.values()].map((h) => h.len)), kws: [...p.inc.values()].map((h) => h.raw) }); });
-  if (!cands.length) return { seg: null, detail: "(bị loại bởi từ khóa loại trừ của phân khúc)", conf: "", hits };
+  if (!cands.length) return { seg: null, detail: "(bị loại bởi từ khóa loại trừ của phân khúc)", conf: "", tie: false, hits };
   cands.sort((a, b) => b.count - a.count || b.maxLen - a.maxLen || a.idx - b.idx);
   const [w, r] = cands;
-  let conf;
-  if (cands.length === 1) conf = "Một phân khúc";
-  else if (w.count > r.count) conf = "Nhiều phân khúc – rõ ràng";
-  else if (w.maxLen > r.maxLen) conf = "Hòa – chọn từ khóa dài hơn (nên rà soát)";
-  else conf = "Hòa – chọn theo thứ tự cột (nên rà soát)";
+  let conf, tie = false;
+  if (cands.length === 1) conf = KW_CONF.SINGLE;
+  else if (w.count > r.count) conf = KW_CONF.CLEAR;
+  else if (w.maxLen > r.maxLen) { conf = KW_CONF.TIE_LEN; tie = true; }
+  else { conf = KW_CONF.TIE_ORDER; tie = true; }
   const detail = cands.map((c) => `${segs[c.idx].name}(${c.kws.join("+")})`).join("; ");
-  return { seg: segs[w.idx].name, detail, conf, hits };
+  return { seg: segs[w.idx].name, detail, conf, tie, hits };
 }
 
 /** Thử nhanh một mô tả với bộ phân khúc nháp. */
@@ -146,7 +152,7 @@ export function testKeywords(def, text, mode = "word") {
   const m = compileMatcher(kw, mode);
   const r = m.find(text);
   return {
-    segment: r.seg || "", detail: r.detail, confidence: r.conf,
+    segment: r.seg || "", detail: r.detail, confidence: r.conf, tie: r.tie,
     hits: r.hits.map((h) => ({ keyword: h.raw, type: h.type, segment: h.seg >= 0 ? kw.segments[h.seg]?.name : "LOẠI TRỪ" })),
   };
 }
