@@ -1,0 +1,121 @@
+{
+  "format": "chemseg-profile",
+  "formatVersion": 1,
+  "id": "mau-hoa-chat-theo-cap-chat-luong",
+  "name": "Mẫu khởi đầu – Hóa chất theo cấp chất lượng",
+  "product": "",
+  "hsCodes": [],
+  "description": "Khung phân khúc dùng chung cho hóa chất vô cơ/hữu cơ cơ bản, phân theo cấp chất lượng & mục đích sử dụng ghi trên mô tả hàng hóa. Dùng làm điểm xuất phát cho sản phẩm mới: Nhân bản → đổi tên → bổ sung từ khóa đặc thù (ứng dụng, quy cách) → xem trước độ phủ ở bước 10.",
+  "intent": "Phân khúc theo cấp chất lượng: Nông nghiệp/Phân bón · Công nghiệp/Kỹ thuật · Thực phẩm · Thức ăn chăn nuôi · Dược phẩm · Thuốc thử/Phòng thí nghiệm. Cần bổ sung từ khóa ứng dụng đặc thù của từng sản phẩm.",
+  "author": "The Blue Ocean",
+  "updatedAt": "2026-11-11",
+  "settings": {},
+  "segments": [
+    {
+      "name": "Nông nghiệp / Phân bón",
+      "include": [
+        "FERTILIZER",
+        "FERTILISER",
+        "FERTILIZERS",
+        "FERTILIZER GRADE",
+        "AGRICULTURAL",
+        "AGRICULTURAL GRADE",
+        "AGRI GRADE",
+        "AGRICULTURE",
+        "PHAN BON",
+        "NONG NGHIEP",
+        "FERTILIZANTE",
+        "ABONO",
+        "ADUBO",
+        "PUPUK",
+        "GUBRE"
+      ],
+      "exclude": [
+        "FEED GRADE"
+      ]
+    },
+    {
+      "name": "Công nghiệp / Kỹ thuật",
+      "include": [
+        "INDUSTRIAL",
+        "INDUSTRIAL GRADE",
+        "TECHNICAL",
+        "TECHNICAL GRADE",
+        "TECH GRADE",
+        "INDUSTRIAL USE",
+        "CONG NGHIEP",
+        "KY THUAT",
+        "GRAU TECNICO",
+        "GRADO TECNICO"
+      ],
+      "exclude": []
+    },
+    {
+      "name": "Thực phẩm",
+      "include": [
+        "FOOD GRADE",
+        "FOOD ADDITIVE",
+        "FOOD",
+        "FCC",
+        "THUC PHAM",
+        "PHU GIA THUC PHAM",
+        "ALIMENTICIO",
+        "GRAU ALIMENTICIO"
+      ],
+      "exclude": [
+        "FEED"
+      ]
+    },
+    {
+      "name": "Thức ăn chăn nuôi",
+      "include": [
+        "FEED GRADE",
+        "FEED ADDITIVE",
+        "FEED",
+        "ANIMAL FEED",
+        "THUC AN CHAN NUOI",
+        "CHAN NUOI",
+        "LIVESTOCK",
+        "POULTRY"
+      ],
+      "exclude": []
+    },
+    {
+      "name": "Dược phẩm",
+      "include": [
+        "PHARMA*",
+        "PHARMACEUTICAL",
+        "USP",
+        "BP GRADE",
+        "PH EUR",
+        "EP GRADE",
+        "DUOC PHAM",
+        "DUOC DUNG",
+        "FARMACEUTIC*",
+        "MEDICINAL"
+      ],
+      "exclude": []
+    },
+    {
+      "name": "Thuốc thử / Phòng thí nghiệm",
+      "include": [
+        "REAGENT",
+        "REAGENT GRADE",
+        "ANALYTICAL",
+        "ANALYTICAL GRADE",
+        "AR GRADE",
+        "ACS",
+        "FOR ANALYSIS",
+        "LABORATORY",
+        "LAB GRADE",
+        "HPLC",
+        "THUOC THU",
+        "THI NGHIEM"
+      ],
+      "exclude": []
+    }
+  ],
+  "exclusions": [],
+  "overrides": [],
+  "industry": []
+}
